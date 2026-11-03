@@ -189,6 +189,21 @@ public class SetupActivity extends Activity {
 
         TextView title = text("GTA V (Xbox 360 recompilation)", 24);
         box.addView(title);
+        Button toolCheck = new Button(this);
+        toolCheck.setText("Check on-device build tools");
+        toolCheck.setOnClickListener(v -> {
+            toolCheck.setEnabled(false);
+            status.setText("Checking Android ARM64 tools...");
+            new Thread(() -> {
+                String report = OnDeviceToolchain.probe(this);
+                runOnUiThread(() -> {
+                    toolCheck.setEnabled(true);
+                    message("On-device toolchain check", report
+                        + "\nThis is only an executable preflight; it does not build the game yet.");
+                });
+            }, "gtav-toolchain-check").start();
+        });
+        box.addView(toolCheck);
         box.addView(text("This app contains no game. It installs your own copy: make the game pack on "
             + "your PC (Build for Android in the PC launcher, after setting the game up there), copy "
             + "it and your disc images and title update to this phone (for example to Download), "
