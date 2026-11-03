@@ -486,6 +486,30 @@ struct Child {
 #endif
     std::vector<std::string> narrow = NarrowArgs(args);
     std::vector<char*> argv = Argv(narrow);
+#if defined(__ANDROID__)
+    // Android API 30 has no portable spawn chdir action. Fork, redirect, chdir, then exec
+    // the absolute app-private tool path. The child does no C++ work after fork.
+    pid = fork();
+    if (pid < 0) {
+      pid = -1;
+      return false;
+    }
+    if (pid == 0) {
+      int out = open(log.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+      if (out < 0) _exit(126);
+      if (dup2(out, STDOUT_FILENO) < 0 || dup2(out, STDERR_FILENO) < 0) _exit(126);
+      if (out > STDERR_FILENO) close(out);
+      if (chdir(cwd.c_str()) != 0) {
+        const char message[] = "Android tool: chdir failed\\n";
+        write(STDERR_FILENO, message, sizeof(message) - 1);
+        _exit(126);
+      }
+      execve(argv[0], argv.data(), environ);
+      const char message[] = "Android tool: execve failed\\n";
+      write(STDERR_FILENO, message, sizeof(message) - 1);
+      _exit(127);
+    }
+#else
     posix_spawn_file_actions_t fa;
     posix_spawn_file_actions_init(&fa);
     posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -499,6 +523,7 @@ struct Child {
       pid = -1;
       return false;
     }
+#endif
     // The install runs in the background, like BELOW_NORMAL_PRIORITY_CLASS on Windows.
     setpriority(PRIO_PROCESS, id_t(pid), 10);
     return true;
