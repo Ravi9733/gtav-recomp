@@ -53,7 +53,7 @@ jobs:
 
       - name: Verify Android executable architecture
         run: |
-          TOOL="rexglue-sdk/out/android-arm64/rexglue"
+          TOOL="rexglue-sdk/out/install/android-arm64/bin/rexglue"
           test -x "$TOOL"
           "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h "$TOOL" | tee android-codegen-elf.txt
           grep -q "Machine:.*AArch64" android-codegen-elf.txt
