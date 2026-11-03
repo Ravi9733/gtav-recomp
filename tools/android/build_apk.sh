@@ -51,6 +51,16 @@ if [ "${RELEASE:-0}" = 1 ]; then
   sed 's/ *android:debuggable="true"//' "$APP/AndroidManifest.xml" > "$OUT/AndroidManifest.release.xml"
   MANIFEST=$OUT/AndroidManifest.release.xml
 fi
+# Fail early with a useful message rather than producing a partial APK when a native
+# dependency or Android build-tools component is missing.
+for required in "$BT/aapt2" "$BT/d8" "$BT/zipalign" "$BT/apksigner" "$JAR" \
+                "$SDK_LIB/librexruntime.so" "$SDK_LIB/librexgpu-xenos.so" "$NDK_LIBCXX" "${LIBS[@]}"; do
+  if [ ! -f "$required" ]; then
+    echo "Required Android build input is missing: $required" >&2
+    exit 1
+  fi
+done
+
 "$BT/aapt2" link -o base.apk --manifest "$MANIFEST" -I "$JAR" \
   --min-sdk-version 30 --target-sdk-version 34
 
