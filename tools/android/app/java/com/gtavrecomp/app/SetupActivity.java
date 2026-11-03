@@ -134,19 +134,29 @@ public class SetupActivity extends Activity {
         File lib = new File(getFilesDir(), "libgtav_game.so");
         File info = new File(packDir(), "pack.txt");
         if (!lib.exists() || !info.exists()) return "No game pack yet.";
-        String shell = readShell(info);
+        String shell = readPackValue(info, "shell");
         String mine = sha256(new File(getApplicationInfo().nativeLibraryDir, "libgtav_fast.so"));
         if (shell == null || !shell.equals(mine))
             return "The game pack was made for another version of this app: run Build for Android "
                 + "again with the download that has this APK.";
+        String gameHash = readPackValue(info, "game");
+        String gameSize = readPackValue(info, "game_size");
+        if (gameHash == null || gameSize == null || !gameHash.equals(sha256(lib)))
+            return "The installed game library is incomplete or damaged. Import the game pack again.";
+        try {
+            if (Long.parseLong(gameSize) != lib.length())
+                return "The installed game library size does not match its pack metadata. Import the pack again.";
+        } catch (NumberFormatException e) {
+            return "The game pack metadata is invalid. Import the pack again.";
+        }
         return null;
     }
 
-    private static String readShell(File info) {
+    private static String readPackValue(File info, String key) {
         try (BufferedReader r = new BufferedReader(new FileReader(info))) {
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.startsWith("shell ")) return line.substring(6).trim();
+                if (line.startsWith(key + " ")) return line.substring(key.length() + 1).trim();
             }
         } catch (Exception e) {
             Log.w(TAG, "pack.txt: " + e);
@@ -378,13 +388,33 @@ public class SetupActivity extends Activity {
         } catch (Exception ex) {
             return "Could not read the game pack: " + ex;
         }
-        if (!haveLib || !new File(stage, "pack.txt").exists() || !new File(stage, "expected.txt").exists())
-            return "This is not a game pack (gtav-android-pack.zip from Build for Android).";
-        // Into place: the library first (read-only, as the system loader prefers), then the rest.
-        File lib = new File(getFilesDir(), "libgtav_game.so");
-        lib.delete();
         File staged = new File(stage, "libgtav_game.so");
-        if (!staged.renameTo(lib)) return "Could not put the game library in place.";
+        File metadata = new File(stage, "pack.txt");
+        if (!haveLib || !metadata.exists() || !new File(stage, "expected.txt").exists())
+            return "This is not a game pack (gtav-android-pack.zip from Build for Android).";
+        String expectedHash = readPackValue(metadata, "game");
+        String expectedSize = readPackValue(metadata, "game_size");
+        if (expectedHash == null || expectedSize == null)
+            return "This game pack has no library-integrity metadata. Rebuild it with the updated PC tools.";
+        if (!expectedHash.equals(sha256(staged)))
+            return "The game library in this pack is damaged or incomplete. Copy the pack again.";
+        try {
+            if (Long.parseLong(expectedSize) != staged.length())
+                return "The game library size does not match the pack metadata. Copy the pack again.";
+        } catch (NumberFormatException e) {
+            return "The game pack metadata is invalid.";
+        }
+        // Do not discard an existing working library until the new verified file is ready.
+        File lib = new File(getFilesDir(), "libgtav_game.so");
+        File backup = new File(getFilesDir(), "libgtav_game.so.old");
+        backup.delete();
+        if (lib.exists() && !lib.renameTo(backup))
+            return "Could not safely stage the existing game library for replacement.";
+        if (!staged.renameTo(lib)) {
+            if (backup.exists()) backup.renameTo(lib);
+            return "Could not put the verified game library in place.";
+        }
+        backup.delete();
         lib.setReadOnly();
         deleteTree(packDir());
         if (!stage.renameTo(packDir())) return "Could not put the game pack in place.";
