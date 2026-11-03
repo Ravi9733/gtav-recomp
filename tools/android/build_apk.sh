@@ -47,8 +47,8 @@ if [ "${ON_DEVICE_TOOLS:-0}" = 1 ]; then
   test -x "$ROOT/build/android-llvm/out/lld"
   mkdir -p stage/assets/tools
   install -m 755 "$REXGLUE_ANDROID_TOOL" stage/assets/tools/rexglue
-  install -m 755 "$ROOT/build/android-llvm/out/clang" stage/assets/tools/clang
-  install -m 755 "$ROOT/build/android-llvm/out/lld" stage/assets/tools/lld
+  install -m 755 "$ROOT/build/android-llvm/out/clang" stage/assets/tools/clang++
+  install -m 755 "$ROOT/build/android-llvm/out/lld" stage/assets/tools/ld.lld
 fi
 
 MANIFEST=$APP/AndroidManifest.xml
