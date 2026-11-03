@@ -80,6 +80,6 @@ fi
   --out $NAME.apk aligned.apk
 rm -f unaligned.apk aligned.apk base.apk
 ls -la $NAME.apk
-if [ "$1" = install ]; then
+if [ "${1:-}" = install ]; then
   adb install -r $NAME.apk
 fi
