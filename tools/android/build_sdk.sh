@@ -4,7 +4,7 @@
 set -e
 source ~/android-tools/env.sh
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-"$ROOT/tools/android/prepare_sdk.sh"
+bash "$ROOT/tools/android/prepare_sdk.sh"
 SDK=$ROOT/rexglue-sdk
 BUILD=$SDK/out/build/android-arm64
 PREFIX=$SDK/out/install/android-arm64
