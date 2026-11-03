@@ -4,8 +4,6 @@ import android.content.Context;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
