@@ -152,3 +152,8 @@ wait no longer spins (poll sentinel woke it), controller pumping rate-limited.
   tools/native/count_squares.py, tools/android/walk_squares.sh --ab (live A/B in one walk).
 - Final sustained run (cool start to 44 C battery, GPU 317-492 MHz): 24-36 fps, mostly 26-35.
 - Measured off: load-op clears, record thread, coarse shading (available as cvars).
+
+
+## 11-03: on-device setup implementation map
+
+Added [`ANDROID_ON_DEVICE_SETUP.md`](ANDROID_ON_DEVICE_SETUP.md) with the actual missing stages and acceptance checks. The key blockers are Android process execution (currently disabled by `LOADER_NO_SPAWN`), an Android build of the ReXGlue code generator, the Clang/LLD runtime integration, and the XenosRecomp + DXC shader pipeline. `build_llvm.sh` alone does not complete these stages. The existing PC-pack path remains the working design until the phone-only path passes a real-device fresh-install test.
