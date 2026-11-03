@@ -51,11 +51,18 @@ jobs:
             "$TOOLCHAIN/llvm-readelf" -h "build/android-llvm/out/$tool" > "$tool.elf.txt"
             grep -q "Machine:.*AArch64" "$tool.elf.txt"
             "$TOOLCHAIN/llvm-readelf" -l "build/android-llvm/out/$tool" | grep -q "LOAD"
+            "$TOOLCHAIN/llvm-readelf" -d "build/android-llvm/out/$tool" > "$tool.dynamic.txt"
+            # The app extracts these binaries into private storage. They must not depend on
+            # host libraries or a separately packaged libc++_shared.so.
+            if grep -E 'NEEDED.*(libc\+\+_shared|libLLVM|libclang-cpp|libzstd|libxml2|libedit|libtinfo)' "$tool.dynamic.txt"; then
+              echo "$tool has an unexpected runtime dependency" >&2
+              exit 1
+            fi
           done
           mkdir -p android-llvm-artifact
           install -m 755 build/android-llvm/out/clang android-llvm-artifact/clang
           install -m 755 build/android-llvm/out/lld android-llvm-artifact/lld
-          cp clang.elf.txt lld.elf.txt android-llvm-artifact/
+          cp clang.elf.txt lld.elf.txt clang.dynamic.txt lld.dynamic.txt android-llvm-artifact/
 
       - name: Upload Android LLVM tools
         uses: actions/upload-artifact@v4
