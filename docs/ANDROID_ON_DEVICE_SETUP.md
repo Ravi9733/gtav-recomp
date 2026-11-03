@@ -56,6 +56,17 @@ to a separate host-assisted step—but that would not meet the requested PC-free
 acceptance test is to run the generator binary on-device against the user's TU27 inputs and
 compare its output hashes with the desktop reference manifest.
 
+### 2b. SDK Android SDL backend correction
+
+The pinned ReXGlue SDK's vendored dependency configuration uses a broad
+`if(UNIX AND NOT APPLE)` condition to enable desktop X11, Wayland, ALSA, PulseAudio,
+and PipeWire SDL drivers. Android also satisfies `UNIX` in the NDK toolchain, so that
+condition would incorrectly request desktop Linux backends during an Android SDK build.
+The Linux SDK patch now narrows that block to `UNIX AND NOT APPLE AND NOT ANDROID`,
+leaving SDL to select its native Android backends. This is a source-level build fix only;
+the SDK has not yet been cross-built with this patch, and it does not establish that the
+full `rexglue` CLI and all its runtime dependencies work on-device.
+
 ### 3. Android compiler and linker
 
 **APK packaging hook committed; runtime integration and device test still required.** Set
