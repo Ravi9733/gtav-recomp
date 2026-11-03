@@ -157,3 +157,5 @@ wait no longer spins (poll sentinel woke it), controller pumping rate-limited.
 ## 11-03: on-device setup implementation map
 
 Added [`ANDROID_ON_DEVICE_SETUP.md`](ANDROID_ON_DEVICE_SETUP.md) with the actual missing stages and acceptance checks. The key blockers are Android process execution (currently disabled by `LOADER_NO_SPAWN`), an Android build of the ReXGlue code generator, the Clang/LLD runtime integration, and the XenosRecomp + DXC shader pipeline. `build_llvm.sh` alone does not complete these stages. The existing PC-pack path remains the working design until the phone-only path passes a real-device fresh-install test.
+
+Android process-runner groundwork (11-03): `loader/src/install.cpp` now has an Android-only `fork`/`execve` child path with per-stage stdout/stderr logs and the existing wait/cancel handling; iOS remains no-spawn. This is not yet wired into the APK setup flow and has not been built or device-tested. See `ANDROID_ON_DEVICE_SETUP.md`.
