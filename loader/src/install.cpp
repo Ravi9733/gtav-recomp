@@ -1308,7 +1308,15 @@ class Installer {
     fs::copy_file(root_ / L"tools" / L"game_dll" / L"expected.txt", pack / L"expected.txt",
                   fs::copy_options::overwrite_existing, ec);
     if (ec) return SetError(L"Could not copy expected.txt into the Android pack");
-    std::ofstream(pack / L"pack.txt", std::ios::trunc) << "gtav-recomp android pack 1\nshell " << shell_hash << "\n";
+    std::string game_hash;
+    uint64_t game_size = 0;
+    if (!HashFile(pack / L"libgtav_game.so", &game_hash, &game_size))
+      return SetError(L"Could not verify the Android game library after linking");
+    std::ofstream(pack / L"pack.txt", std::ios::trunc)
+        << "gtav-recomp android pack 2\nshell " << shell_hash << "\ngame " << game_hash
+        << "\ngame_size " << game_size << "\n";
+    if (!fs::exists(pack / L"pack.txt", ec) || ec)
+      return SetError(L"Could not write Android pack metadata");
 
     ui_.Stage(L"Packing gtav-android-pack.zip...");
     const fs::path zip = out / L"gtav-android-pack.zip";
