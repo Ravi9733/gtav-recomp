@@ -51,6 +51,9 @@ jobs:
       - name: Build ReXGlue code generator
         run: cmake --build build/rexglue-android --target rexglue --parallel 2
 
+      - name: Install Android codegen tool and runtime dependencies
+        run: cmake --install build/rexglue-android --config Release
+
       - name: Verify Android executable architecture
         run: |
           TOOL="rexglue-sdk/out/install/android-arm64/bin/rexglue"
