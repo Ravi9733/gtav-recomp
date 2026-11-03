@@ -42,7 +42,8 @@ jobs:
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=30 \
             -DANDROID_STL=c++_static \
-            -DLLVM_TARGETS_TO_BUILD="AMDGPU;NVPTX" \
+            -DLLVM_TARGETS_TO_BUILD= \
+            -DLLVM_DEFAULT_TARGET_TRIPLE=aarch64-linux-android30 \
             -DLLVM_ENABLE_TERMINFO=OFF \
             -DLLVM_ENABLE_ZLIB=OFF \
             -DLLVM_ENABLE_LIBXML2=OFF \
