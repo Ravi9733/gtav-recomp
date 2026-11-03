@@ -52,6 +52,27 @@ cmake -S "$SRC/llvm" -B "$W/android" -G Ninja \
 nice cmake --build "$W/android" -j"$JOBS" --target clang lld
 mkdir -p "$W/out"
 STRIP=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
-"$STRIP" -o "$W/out/clang" "$W/android/bin/clang-$VER" 2>/dev/null || "$STRIP" -o "$W/out/clang" "$W/android/bin/clang-19"
-"$STRIP" -o "$W/out/lld" "$W/android/bin/lld"
+# LLVM's LLD driver is named ld.lld (not lld) in standard LLVM installs. Keep a
+# fallback for distributions/builds that expose the unprefixed name.
+CLANG_BIN=""
+for candidate in "$W/android/bin/clang-$VER" "$W/android/bin/clang-19" "$W/android/bin/clang"; do
+  if [ -x "$candidate" ]; then CLANG_BIN=$candidate; break; fi
+done
+LLD_BIN=""
+for candidate in "$W/android/bin/ld.lld" "$W/android/bin/lld"; do
+  if [ -x "$candidate" ]; then LLD_BIN=$candidate; break; fi
+done
+if [ -z "$CLANG_BIN" ]; then
+  echo "Could not find the Android clang driver in $W/android/bin" >&2
+  ls -la "$W/android/bin" >&2
+  exit 1
+fi
+if [ -z "$LLD_BIN" ]; then
+  echo "Could not find the Android LLD driver (expected ld.lld) in $W/android/bin" >&2
+  ls -la "$W/android/bin" >&2
+  exit 1
+fi
+"$STRIP" -o "$W/out/clang" "$CLANG_BIN"
+"$STRIP" -o "$W/out/lld" "$LLD_BIN"
+chmod 755 "$W/out/clang" "$W/out/lld"
 ls -la "$W/out"
