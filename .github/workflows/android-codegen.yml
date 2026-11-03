@@ -1,0 +1,69 @@
+name: Android ReXGlue codegen tool
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-codegen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout GTA V recomp project
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build tools and NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake git
+          sdkmanager "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned ReXGlue SDK and submodules
+        run: |
+          git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
+          git -C rexglue-sdk checkout f5337cdc947ff6d4c4196737e2c807a48f2a1fc2
+          git -C rexglue-sdk submodule update --init --recursive
+
+      - name: Apply Android compatibility patch
+        run: |
+          git -C rexglue-sdk apply "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk diff --check
+
+      - name: Configure Android arm64 codegen
+        run: |
+          cmake -S rexglue-sdk -B build/rexglue-android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-30 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/rexglue-sdk/out/install/android-arm64" \
+            -DREXGLUE_USE_VULKAN=ON \
+            -DREXGLUE_ENABLE_TRACY=OFF \
+            -DREXGLUE_ENABLE_PERF_COUNTERS=OFF \
+            -DREXGLUE_BUILD_TESTS=OFF
+
+      - name: Build ReXGlue code generator
+        run: cmake --build build/rexglue-android --target rexglue --parallel 2
+
+      - name: Verify Android executable architecture
+        run: |
+          TOOL="rexglue-sdk/out/android-arm64/rexglue"
+          test -x "$TOOL"
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h "$TOOL" | tee android-codegen-elf.txt
+          grep -q "Machine:.*AArch64" android-codegen-elf.txt
+          mkdir -p android-codegen-artifact
+          cp "$TOOL" android-codegen-artifact/rexglue
+          cp android-codegen-elf.txt android-codegen-artifact/
+
+      - name: Upload Android codegen tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: rexglue-android-arm64-api30
+          path: android-codegen-artifact/
+          if-no-files-found: error
