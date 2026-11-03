@@ -30,7 +30,7 @@ jobs:
 
       - name: Fetch pinned DirectX Shader Compiler source
         run: |
-          git clone --depth 1 --branch v1.7.2403 https://github.com/microsoft/DirectXShaderCompiler.git DirectXShaderCompiler
+          git clone --depth 1 --branch v1.8.2505 https://github.com/microsoft/DirectXShaderCompiler.git DirectXShaderCompiler
           git -C DirectXShaderCompiler submodule update --init --depth 1
 
       - name: Configure DXC for Android arm64 API 30
