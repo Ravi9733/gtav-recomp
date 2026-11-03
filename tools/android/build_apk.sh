@@ -21,9 +21,24 @@ mkdir -p "$OUT"
 cd "$OUT"
 rm -rf classes stage && mkdir -p classes stage/lib/arm64-v8a
 
-javac --release 17 -nowarn -classpath "$JAR" -d classes \
-  $(find "$SDL_JAVA" "$APP/java" -name '*.java') 2>&1 | grep -v "^Note:" || true
-"$BT/d8" --release --min-api 30 --lib "$JAR" --output stage $(find classes -name '*.class')
+# Do not hide javac failures: the old grep pipeline ended in "|| true", so an APK could be
+# assembled with missing/stale classes even when Java compilation failed.
+mapfile -d '' JAVA_SOURCES < <(find "$SDL_JAVA" "$APP/java" -name '*.java' -print0)
+if [ "${#JAVA_SOURCES[@]}" -eq 0 ]; then
+  echo "No Java sources found in $SDL_JAVA or $APP/java" >&2
+  exit 1
+fi
+if ! javac --release 17 -nowarn -classpath "$JAR" -d classes "${JAVA_SOURCES[@]}" > javac.log 2>&1; then
+  cat javac.log >&2
+  exit 1
+fi
+grep -v "^Note:" javac.log || true
+mapfile -d '' CLASS_FILES < <(find classes -name '*.class' -print0)
+if [ "${#CLASS_FILES[@]}" -eq 0 ]; then
+  echo "javac succeeded but produced no .class files" >&2
+  exit 1
+fi
+"$BT/d8" --release --min-api 30 --lib "$JAR" --output stage "${CLASS_FILES[@]}"
 
 MANIFEST=$APP/AndroidManifest.xml
 NAME=gtav-recomp
