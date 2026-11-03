@@ -41,10 +41,9 @@ extern char** environ;
 #include <sys/sysctl.h>
 #endif
 // The iPhone app's setup screen uses the copy stages only (RunDataInstall): iOS cannot start
-// processes, so nothing here that spawns one (codegen, clang, the game) runs there.
-#if (defined(__APPLE__) && TARGET_OS_IPHONE) || defined(__ANDROID__)
-// Android (the APK's setup screen, libgtav_setup.so): RunDataInstall only, like the iPhone; bionic
-// also lacks posix_spawn_file_actions_addchdir_np before API 34.
+// processes, so nothing here that spawns one (codegen, clang, the game) runs there. Android has
+// its own fork/exec runner below; it does not use bionic's API-34-only addchdir_np extension.
+#if defined(__APPLE__) && TARGET_OS_IPHONE
 #define LOADER_NO_SPAWN 1
 #endif
 
@@ -469,25 +468,50 @@ struct Child {
 #ifdef LOADER_NO_SPAWN
     (void)args, (void)cwd, (void)log;
     return false;
-#endif
+#else
     std::vector<std::string> narrow = NarrowArgs(args);
     std::vector<char*> argv = Argv(narrow);
+#if defined(__ANDROID__)
+    // API 30 does not provide posix_spawn_file_actions_addchdir_np. Use fork + async-signal-safe
+    // setup calls, then exec the app-private native tool by absolute path. Never run tools from
+    // shared storage (it is mounted noexec on Android).
+    pid = fork();
+    if (pid < 0) {
+      pid = -1;
+      return false;
+    }
+    if (pid == 0) {
+      int out = open(log.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+      if (out < 0) _exit(126);
+      if (dup2(out, STDOUT_FILENO) < 0 || dup2(out, STDERR_FILENO) < 0) _exit(126);
+      if (out > STDERR_FILENO) close(out);
+      if (chdir(cwd.c_str()) != 0) {
+        const char message[] = "Android tool: chdir failed\\n";
+        write(STDERR_FILENO, message, sizeof(message) - 1);
+        _exit(126);
+      }
+      execve(argv[0], argv.data(), environ);
+      const char message[] = "Android tool: execve failed\\n";
+      write(STDERR_FILENO, message, sizeof(message) - 1);
+      _exit(127);
+    }
+#else
     posix_spawn_file_actions_t fa;
     posix_spawn_file_actions_init(&fa);
     posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     posix_spawn_file_actions_adddup2(&fa, 1, 2);
-#ifndef LOADER_NO_SPAWN
     posix_spawn_file_actions_addchdir_np(&fa, cwd.c_str());
-#endif
     int err = posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ);
     posix_spawn_file_actions_destroy(&fa);
     if (err != 0) {
       pid = -1;
       return false;
     }
+#endif
     // The install runs in the background, like BELOW_NORMAL_PRIORITY_CLASS on Windows.
     setpriority(PRIO_PROCESS, id_t(pid), 10);
     return true;
+#endif
   }
   // -1 while running. wait_ms < 0 waits until it exits.
   int Poll(int wait_ms = 0) {
