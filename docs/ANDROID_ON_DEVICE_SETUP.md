@@ -67,6 +67,21 @@ leaving SDL to select its native Android backends. This is a source-level build 
 the SDK has not yet been cross-built with this patch, and it does not establish that the
 full `rexglue` CLI and all its runtime dependencies work on-device.
 
+### 2c. Reproducible Android codegen build job
+
+A manual GitHub Actions workflow now attempts a real SDK cross-build:
+`.github/workflows/android-codegen.yml`. It checks out the pinned ReXGlue SDK revision
+`f5337cdc947ff6d4c4196737e2c807a48f2a1fc2`, initializes its submodules, applies the
+project's Android SDK patch, configures the NDK for `arm64-v8a` / API 30, builds the
+`rexglue` executable, checks the ELF machine type, and uploads the binary as an artifact.
+Run it from the repository's Actions tab using **Android ReXGlue codegen tool** →
+**Run workflow**.
+
+This is a build-validation job, not proof of a successful build yet. A green run is required
+before integrating the executable into SetupActivity; even then, on-device launch and TU27
+codegen output equivalence must still be tested. The workflow currently builds the SDK tool
+only, not the game library or shader pipeline.
+
 ### 3. Android compiler and linker
 
 **APK packaging hook committed; runtime integration and device test still required.** Set
