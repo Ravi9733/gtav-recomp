@@ -4,6 +4,11 @@
 set -e
 source ~/android-tools/env.sh
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+HOST_REXGLUE="$ROOT/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
+if [ ! -x "$HOST_REXGLUE" ]; then
+  echo "Linux host ReXGlue code generator is missing; building it first."
+  bash "$ROOT/tools/android/build_host_codegen.sh"
+fi
 BUILD=$ROOT/build/android
 JOBS=${JOBS:-4}
 step=${1:-all}
