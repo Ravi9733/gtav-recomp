@@ -2,6 +2,13 @@ name: Android ReXGlue codegen tool
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - android-on-device-setup
+    paths:
+      - ".github/workflows/android-codegen.yml"
+      - "rexglue-sdk-gtav-linux.patch"
+      - "tools/android/build_sdk.sh"
 
 permissions:
   contents: read
@@ -16,6 +23,9 @@ jobs:
 
       - name: Install Android NDK
         uses: android-actions/setup-android@v3
+        with:
+          # Avoid the removed legacy 'tools' package; sdkmanager installs the pinned NDK below.
+          packages: platform-tools
 
       - name: Install build tools and NDK
         run: |
