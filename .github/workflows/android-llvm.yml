@@ -2,6 +2,12 @@ name: Android on-device compiler tools
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - android-on-device-setup
+    paths:
+      - ".github/workflows/android-llvm.yml"
+      - "tools/android/build_llvm.sh"
 
 permissions:
   contents: read
