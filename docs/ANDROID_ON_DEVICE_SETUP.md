@@ -39,6 +39,23 @@ Verify all runtime dependencies and generated output against the desktop generat
 user-supplied TU27 installation. The generated source set is large (hundreds of C++ files), so
 memory use, temporary storage, and resumability must be measured on real devices.
 
+
+### 2a. Codegen target constraint found during source audit
+
+The current `gtav/CMakeLists.txt` explicitly treats Android as a cross-build: when
+`ANDROID AND TARGET rex::rexglue`, it points the imported `rex::rexglue` executable at
+`../rexglue-sdk/out/install/linux-amd64/bin/rexglue`. That is a Linux host tool used while
+building Android on a computer; it is not an Android executable and cannot be launched by the
+phone's setup process. The SDK source/build tree is not vendored in this repository (only patch
+files are present), so an Android-native generator cannot be produced from this checkout alone.
+
+Do not simply change the imported executable path to an Android path: the SDK's codegen target
+and its dependencies must first be audited and cross-built for arm64-v8a/API 30. If codegen has
+host-only dependencies, the viable alternative is to ship generated sources or move generation
+to a separate host-assisted step—but that would not meet the requested PC-free setup. The
+acceptance test is to run the generator binary on-device against the user's TU27 inputs and
+compare its output hashes with the desktop reference manifest.
+
 ### 3. Android compiler and linker
 
 **APK packaging hook committed; runtime integration and device test still required.** Set
