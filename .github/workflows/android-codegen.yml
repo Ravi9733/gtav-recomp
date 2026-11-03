@@ -24,7 +24,7 @@ jobs:
           fi
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null
-          "$SDKMANAGER" "ndk;29.0.14206865"
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
       - name: Fetch pinned ReXGlue SDK and submodules
@@ -32,6 +32,16 @@ jobs:
           git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
           git -C rexglue-sdk checkout f5337cdc947ff6d4c4196737e2c807a48f2a1fc2
           git -C rexglue-sdk submodule update --init --recursive
+
+      - name: Compile Android setup Java sources
+        run: |
+          mkdir -p build/android-java-classes
+          mapfile -d '' JAVA_SOURCES < <(find rexglue-sdk/thirdparty/sdl3/android-project/app/src/main/java tools/android/app/java -name '*.java' -print0)
+          test "${#JAVA_SOURCES[@]}" -gt 0
+          javac --release 17 -nowarn \
+            -classpath "$ANDROID_SDK_ROOT/platforms/android-36/android.jar" \
+            -d build/android-java-classes "${JAVA_SOURCES[@]}"
+          test -n "$(find build/android-java-classes -name '*.class' -print -quit)"
 
       - name: Apply Android compatibility patch
         run: |
