@@ -83,6 +83,8 @@ Android: tools/android/build_llvm.sh exists, building downloaded LLVM needs the 
 
 ## Build and run (from Linux, phone on adb)
 
+The first `build_sdk.sh` run now fetches the pinned ReXGlue SDK revision and applies the Android compatibility patch automatically via `tools/android/prepare_sdk.sh`. The script is safe to re-run and refuses to overwrite an SDK checkout with unrelated local edits.
+
 ```sh
 tools/android/build_sdk.sh            # SDK for arm64-v8a (NDK r29, API 30, armv8.2-a+lse)
 tools/android/build_game.sh           # libmain.so (codegen runs with the host rexglue)
