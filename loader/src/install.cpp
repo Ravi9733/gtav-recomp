@@ -1072,6 +1072,12 @@ class Installer {
     int64_t by_ram = (int64_t(mem >> 20) - 3072) / 1024;
     int jobs = int(std::min<int64_t>(sysconf(_SC_NPROCESSORS_ONLN), by_ram));
     return std::clamp(jobs, 1, 32);
+#elif defined(__ANDROID__)
+    // A generated translation unit can make clang use close to 1 GiB. On-device builds share
+    // RAM with Android, the renderer and the game; parallel clang processes can trigger LMK/OOM
+    // on 6-8 GiB phones. Keep phone-side recompilation serial until device measurements justify
+    // a higher cap. Desktop Linux keeps its memory-based parallelism below.
+    return 1;
 #elif !defined(_WIN32)
     // MemAvailable from /proc/meminfo, in kB.
     int64_t avail_mb = 4096;
