@@ -41,12 +41,17 @@ memory use, temporary storage, and resumability must be measured on real devices
 
 ### 3. Android compiler and linker
 
-The existing LLVM build script targets Android, but its output is not currently packaged or called
-by `SetupActivity`. Integrate Clang and LLD only after verifying that the binaries start on Android
-API 30, can access the app-private sysroot/link inputs, and can compile/link a small arm64 smoke
-test. Then compile the generated game objects with the exact freestanding flags and link inputs
-used by desktop `RunAndroidBuild`. Do not assume that copying executables into an APK is enough:
-the runtime paths, permissions, linker inputs, and process-launch restrictions all need tests.
+**APK packaging hook committed; runtime integration and device test still required.** Set
+`ON_DEVICE_TOOLS=1` when running `tools/android/build_apk.sh` after
+`tools/android/build_llvm.sh`. The script now requires the generated Android `clang` and `lld`
+executables, places them in the APK's `lib/arm64-v8a` directory as `libclang.so` and
+`libld.lld.so`, and marks them executable. Android extracts native libraries into the app's
+private native-library directory, the only suitable location for executing app-bundled tools.
+
+This does not yet prove that the executables start on API 30 or can compile/link the game. Next,
+add a smoke test that invokes these exact paths through the Android process runner, verify the
+sysroot/link inputs, and compile/link a tiny arm64 program before attempting the full generated
+game. Then use the exact freestanding flags and link inputs from desktop `RunAndroidBuild`.
 
 ### 4. On-device shader pipeline
 
