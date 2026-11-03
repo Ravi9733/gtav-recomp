@@ -22,16 +22,15 @@ make the complete setup pipeline run on Android.
 
 ### 1. Android-native process execution
 
-`install.cpp` currently defines `LOADER_NO_SPAWN` for Android. This is intentional: the Android
-setup JNI currently exposes only the data-copy operation, and the normal `Child` process runner is
-not available to the Android build. Before reusing the desktop installer, implement and test an
-Android process runner that:
+**Initial implementation committed, device test still required.** `install.cpp` now keeps
+`LOADER_NO_SPAWN` for iOS only and uses an Android-specific `fork` + `execve` path. It builds an
+argument vector before forking, redirects stdout/stderr to the stage log, changes to the requested
+working directory, executes the absolute tool path, and uses the existing wait/cancel handling.
+The Android path avoids bionic's API-34-only `posix_spawn_file_actions_addchdir_np`.
 
-- launches only app-private executables from the app's native-library directory;
-- passes an explicit working directory and argument vector (never a shell command string);
-- redirects stdout/stderr to per-stage log files;
-- supports cancellation, exit-status reporting, and bounded waits;
-- does not execute files from shared storage.
+Before relying on it, build the Android setup library and test on API 30+ that an app-private
+executable can start, its log is captured, nonzero exit codes are reported, and cancellation kills
+and reaps the child. The process runner alone does not provide the missing Android tools.
 
 ### 2. Android code generator
 
