@@ -51,10 +51,24 @@ if [ "${RELEASE:-0}" = 1 ]; then
   sed 's/ *android:debuggable="true"//' "$APP/AndroidManifest.xml" > "$OUT/AndroidManifest.release.xml"
   MANIFEST=$OUT/AndroidManifest.release.xml
 fi
-# Optional on-device compiler payload. build_llvm.sh produces Android arm64 executables;
+# Optional on-device codegen/compiler payloads. All executables are packaged in nativeLibraryDir,
 # package them under nativeLibraryDir names because Android extracts native libraries there with
 # executable permissions, and shared storage is mounted noexec. This is only the compiler stage:
 # codegen and shader tools are separate requirements.
+if [ "${ON_DEVICE_CODEGEN:-0}" = 1 ]; then
+  CODEGEN="$ROOT/build/android-codegen/rexglue"
+  if [ ! -x "$CODEGEN" ]; then
+    echo "ON_DEVICE_CODEGEN=1 but $CODEGEN is missing; fetch the rexglue-android-arm64-api30 artifact and place rexglue there." >&2
+    exit 1
+  fi
+  READELF="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+  if ! "$READELF" -h "$CODEGEN" | grep -q "Machine:.*AArch64"; then
+    echo "$CODEGEN is not an AArch64 ELF executable" >&2
+    exit 1
+  fi
+  cp "$CODEGEN" stage/lib/arm64-v8a/librexglue.so
+  chmod 755 stage/lib/arm64-v8a/librexglue.so
+fi
 if [ "${ON_DEVICE_TOOLS:-0}" = 1 ]; then
   LLVM_OUT=$ROOT/build/android-llvm/out
   for tool in clang lld; do
@@ -102,7 +116,7 @@ fi
 "$BT/apksigner" sign --ks "$KEY" --ks-pass pass:android --key-pass pass:android \
   --out $NAME.apk aligned.apk
 rm -f unaligned.apk aligned.apk base.apk
-ls -la $NAME.apk
+ls -la "$NAME.apk"
 if [ "$1" = install ]; then
   adb install -r $NAME.apk
 fi
