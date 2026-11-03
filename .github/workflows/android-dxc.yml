@@ -1,0 +1,89 @@
+name: Android ARM64 DXC shader compiler
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-dxc.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-dxc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Install build tools and Android NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake git python3
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned DirectX Shader Compiler source
+        run: |
+          git clone --depth 1 --branch v1.7.2403 https://github.com/microsoft/DirectXShaderCompiler.git DirectXShaderCompiler
+          git -C DirectXShaderCompiler submodule update --init --depth 1
+
+      - name: Configure DXC for Android arm64 API 30
+        run: |
+          cmake -S DirectXShaderCompiler -B build/dxc-android -G Ninja \
+            -C DirectXShaderCompiler/cmake/caches/PredefinedParams.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=30 \
+            -DANDROID_STL=c++_static \
+            -DLLVM_TARGETS_TO_BUILD="AMDGPU;NVPTX" \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_BUILD_TESTS=OFF \
+            -DLLVM_BUILD_EXAMPLES=OFF \
+            -DLLVM_BUILD_DOCS=OFF \
+            -DLLVM_BUILD_LLVM_DYLIB=OFF \
+            -DSPIRV_BUILD_TESTS=OFF \
+            -DHLSL_BUILD_DXILCONV=OFF \
+            -DHLSL_ENABLE_FIXED_VER=ON \
+            -DBUILD_SHARED_LIBS=OFF
+
+      - name: Build DXC compiler and command-line tool
+        run: |
+          cmake --build build/dxc-android --target dxc dxcompiler --parallel 2
+          find build/dxc-android -type f \\( -name dxc -o -name 'libdxcompiler.so' \\) -print
+
+      - name: Verify Android ELF outputs and runtime dependencies
+        run: |
+          LLVM_READelf="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          DXC_BIN="$(find build/dxc-android -type f -name dxc -perm -111 | head -n1)"
+          DXC_LIB="$(find build/dxc-android -type f -name libdxcompiler.so | head -n1)"
+          test -n "$DXC_BIN"
+          test -n "$DXC_LIB"
+          mkdir -p android-dxc-artifact/bin android-dxc-artifact/lib android-dxc-artifact/include
+          "$LLVM_READelf" -h "$DXC_BIN" | tee android-dxc-artifact/dxc-elf.txt
+          "$LLVM_READelf" -h "$DXC_LIB" | tee android-dxc-artifact/dxcompiler-elf.txt
+          grep -q "Machine:.*AArch64" android-dxc-artifact/dxc-elf.txt
+          grep -q "Machine:.*AArch64" android-dxc-artifact/dxcompiler-elf.txt
+          "$LLVM_READelf" -d "$DXC_BIN" | tee android-dxc-artifact/dxc-needed.txt
+          "$LLVM_READelf" -d "$DXC_LIB" | tee android-dxc-artifact/dxcompiler-needed.txt
+          cp "$DXC_BIN" android-dxc-artifact/bin/dxc
+          cp "$DXC_LIB" android-dxc-artifact/lib/libdxcompiler.so
+          cp -a DirectXShaderCompiler/include/dxc android-dxc-artifact/include/
+          cp DirectXShaderCompiler/LICENSE.TXT android-dxc-artifact/
+          chmod +x android-dxc-artifact/bin/dxc
+
+      - name: Upload Android DXC toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: dxc-android-arm64-api30
+          path: android-dxc-artifact/
+          if-no-files-found: error
