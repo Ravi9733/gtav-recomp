@@ -41,10 +41,9 @@ extern char** environ;
 #include <sys/sysctl.h>
 #endif
 // The iPhone app's setup screen uses the copy stages only (RunDataInstall): iOS cannot start
-// processes, so nothing here that spawns one (codegen, clang, the game) runs there.
-#if (defined(__APPLE__) && TARGET_OS_IPHONE) || defined(__ANDROID__)
-// Android (the APK's setup screen, libgtav_setup.so): RunDataInstall only, like the iPhone; bionic
-// also lacks posix_spawn_file_actions_addchdir_np before API 34.
+// processes. Android has a fork/exec runner in Child::Start; it avoids the API-34-only
+// posix_spawn_file_actions_addchdir_np extension and executes tools from app-private storage.
+#if defined(__APPLE__) && TARGET_OS_IPHONE
 #define LOADER_NO_SPAWN 1
 #endif
 
@@ -402,38 +401,53 @@ std::wstring CommandLine(const Args& args) {
 struct Child {
   PROCESS_INFORMATION pi = {};
   bool Start(const Args& args, const fs::path& cwd, const fs::path& log) {
-    std::wstring cmdline = CommandLine(args);
-    SECURITY_ATTRIBUTES sa = {sizeof(sa), nullptr, TRUE};
-    HANDLE out = CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, nullptr);
-    // The child inherits the log handle only. Children start from several worker threads, and the
-    // CRT opens files (std::ofstream) with inheritable handles: with plain inheritance a child
-    // started on one thread kept another thread's .hlsl open for writing, and that thread's dxc
-    // then failed with "being used by another process" (365 of 3,617 iPhone shaders).
-    const bool have_out = out != INVALID_HANDLE_VALUE;
-    SIZE_T attr_size = 0;
-    InitializeProcThreadAttributeList(nullptr, 1, 0, &attr_size);
-    std::vector<char> attr_buf(attr_size);
-    auto* attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attr_buf.data());
-    bool have_attrs = have_out && InitializeProcThreadAttributeList(attrs, 1, 0, &attr_size) &&
-                      UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &out,
-                                                sizeof(out), nullptr, nullptr);
-    STARTUPINFOEXW si = {};
-    si.StartupInfo.cb = sizeof(si);
-    if (have_attrs) {
-      si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-      si.StartupInfo.hStdOutput = out;
-      si.StartupInfo.hStdError = out;
-      si.lpAttributeList = attrs;
+#ifdef LOADER_NO_SPAWN
+    (void)args, (void)cwd, (void)log;
+    return false;
+#else
+    std::vector<std::string> narrow = NarrowArgs(args);
+    std::vector<char*> argv = Argv(narrow);
+#if defined(__ANDROID__)
+    // API 30 does not provide posix_spawn_file_actions_addchdir_np. Use fork + async-signal-safe
+    // setup calls, then exec the app-private native tool by absolute path. Never run tools from
+    // shared storage (it is mounted noexec on Android).
+    pid = fork();
+    if (pid < 0) {
+      pid = -1;
+      return false;
     }
-    std::wstring cmd = cmdline;
-    BOOL ok = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, have_attrs ? TRUE : FALSE,
-                             CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS |
-                                 (have_attrs ? EXTENDED_STARTUPINFO_PRESENT : 0),
-                             nullptr, cwd.c_str(), &si.StartupInfo, &pi);
-    if (have_attrs) DeleteProcThreadAttributeList(attrs);
-    if (have_out) CloseHandle(out);
-    return ok != 0;
+    if (pid == 0) {
+      int out = open(log.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+      if (out < 0) _exit(126);
+      if (dup2(out, STDOUT_FILENO) < 0 || dup2(out, STDERR_FILENO) < 0) _exit(126);
+      if (out > STDERR_FILENO) close(out);
+      if (chdir(cwd.c_str()) != 0) {
+        const char message[] = "Android tool: chdir failed\\n";
+        write(STDERR_FILENO, message, sizeof(message) - 1);
+        _exit(126);
+      }
+      execve(argv[0], argv.data(), environ);
+      const char message[] = "Android tool: execve failed\\n";
+      write(STDERR_FILENO, message, sizeof(message) - 1);
+      _exit(127);
+    }
+#else
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    posix_spawn_file_actions_addchdir_np(&fa, cwd.c_str());
+    int err = posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ);
+    posix_spawn_file_actions_destroy(&fa);
+    if (err != 0) {
+      pid = -1;
+      return false;
+    }
+#endif
+    // The install runs in the background, like BELOW_NORMAL_PRIORITY_CLASS on Windows.
+    setpriority(PRIO_PROCESS, id_t(pid), 10);
+    return true;
+#endif
   }
   // -1 while running.
   int Poll(DWORD wait_ms = 0) {
