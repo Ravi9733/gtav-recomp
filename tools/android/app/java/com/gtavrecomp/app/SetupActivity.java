@@ -306,19 +306,20 @@ public class SetupActivity extends Activity {
      * A normal release APK without these assets remains compatible with the existing game-pack flow.
      */
     private String prepareOnDeviceTools() {
-        final String[] required = {"rexglue", "clang", "lld"};
+        final String[] required = {"rexglue", "clang++", "ld.lld"};
         try {
             String[] packaged = getAssets().list("tools");
             if (packaged == null || packaged.length == 0) return null; // legacy pack-based APK
-            File dir = new File(getFilesDir(), "tools");
-            if (!dir.exists() && !dir.mkdirs()) return "Could not create private tools folder.";
+            File root = getFilesDir();
+            File llvmBin = new File(root, "tools/llvm/bin");
+            if (!llvmBin.exists() && !llvmBin.mkdirs()) return "Could not create private LLVM tools folder.";
             byte[] buffer = new byte[1 << 16];
             for (String name : required) {
                 boolean found = false;
                 for (String item : packaged) if (name.equals(item)) found = true;
                 if (!found) return "The APK has an incomplete on-device tools bundle (missing " + name + ").";
-                File target = new File(dir, name);
-                File temp = new File(dir, name + ".new");
+                File target = name.equals("rexglue") ? new File(root, name) : new File(llvmBin, name);
+                File temp = new File(target.getParentFile(), name + ".new");
                 try (InputStream in = getAssets().open("tools/" + name);
                      FileOutputStream out = new FileOutputStream(temp)) {
                     for (int n; (n = in.read(buffer)) != -1;) out.write(buffer, 0, n);
@@ -340,7 +341,7 @@ public class SetupActivity extends Activity {
                 if (!temp.renameTo(target) || !target.setExecutable(true, true) || !target.canExecute())
                     return "Could not prepare executable tool: " + name;
             }
-            onLog("Prepared Android ARM64 setup tools in private storage.");
+            onLog("Prepared Android ARM64 codegen, compiler and linker in private storage.");
             return null;
         } catch (Exception e) {
             Log.e(TAG, "prepare on-device tools", e);
