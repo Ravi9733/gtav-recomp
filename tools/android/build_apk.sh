@@ -5,7 +5,7 @@
 # RELEASE=1: the public APK with no game code (build/android-dll, GTAV_GAME_DLL=ON: the libmain.so
 # shim + libgtav_fast.so; the player's libgtav_game.so comes from the PC's Build for Android), not
 # debuggable -> build/android/apk/gtav-recomp-release.apk
-set -e
+set -euo pipefail
 source ~/android-tools/env.sh
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 APP=$ROOT/tools/android/app
@@ -21,9 +21,35 @@ mkdir -p "$OUT"
 cd "$OUT"
 rm -rf classes stage && mkdir -p classes stage/lib/arm64-v8a
 
-javac --release 17 -nowarn -classpath "$JAR" -d classes \
-  $(find "$SDL_JAVA" "$APP/java" -name '*.java') 2>&1 | grep -v "^Note:" || true
-"$BT/d8" --release --min-api 30 --lib "$JAR" --output stage $(find classes -name '*.class')
+mapfile -d '' JAVA_SOURCES < <(find "$SDL_JAVA" "$APP/java" -name '*.java' -print0)
+if [ "${#JAVA_SOURCES[@]}" -eq 0 ]; then
+  echo "No Android Java sources found." >&2
+  exit 1
+fi
+if ! javac --release 17 -nowarn -classpath "$JAR" -d classes "${JAVA_SOURCES[@]}" > javac.log 2>&1; then
+  cat javac.log >&2
+  exit 1
+fi
+grep -v "^Note:" javac.log || true
+mapfile -d '' CLASS_FILES < <(find classes -name '*.class' -print0)
+if [ "${#CLASS_FILES[@]}" -eq 0 ]; then
+  echo "javac produced no class files." >&2
+  exit 1
+fi
+"$BT/d8" --release --min-api 30 --lib "$JAR" --output stage "${CLASS_FILES[@]}"
+
+# Optional on-device setup tools. These are packaged as assets and must be copied to
+# app-private executable storage by SetupActivity before they can be launched.
+if [ "${ON_DEVICE_TOOLS:-0}" = 1 ]; then
+  : "${REXGLUE_ANDROID_TOOL:?Set REXGLUE_ANDROID_TOOL to the verified arm64 Android rexglue executable}"
+  test -x "$REXGLUE_ANDROID_TOOL"
+  test -x "$ROOT/build/android-llvm/out/clang"
+  test -x "$ROOT/build/android-llvm/out/lld"
+  mkdir -p stage/assets/tools
+  install -m 755 "$REXGLUE_ANDROID_TOOL" stage/assets/tools/rexglue
+  install -m 755 "$ROOT/build/android-llvm/out/clang" stage/assets/tools/clang
+  install -m 755 "$ROOT/build/android-llvm/out/lld" stage/assets/tools/lld
+fi
 
 MANIFEST=$APP/AndroidManifest.xml
 NAME=gtav-recomp
@@ -43,7 +69,7 @@ cp "${LIBS[@]}" "$SDK_LIB/librexruntime.so" "$SDK_LIB/librexgpu-xenos.so" \
    "$NDK_LIBCXX" stage/lib/arm64-v8a/
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug stage/lib/arm64-v8a/*.so
 cp base.apk unaligned.apk
-(cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib)
+(cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib && if [ -d assets ]; then zip -q -X -r ../unaligned.apk assets; fi)
 
 "$BT/zipalign" -f -P 16 4 unaligned.apk aligned.apk
 if [ ! -f "$KEY" ]; then
