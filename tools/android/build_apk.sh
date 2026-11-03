@@ -51,6 +51,23 @@ if [ "${RELEASE:-0}" = 1 ]; then
   sed 's/ *android:debuggable="true"//' "$APP/AndroidManifest.xml" > "$OUT/AndroidManifest.release.xml"
   MANIFEST=$OUT/AndroidManifest.release.xml
 fi
+# Optional on-device compiler payload. build_llvm.sh produces Android arm64 executables;
+# package them under nativeLibraryDir names because Android extracts native libraries there with
+# executable permissions, and shared storage is mounted noexec. This is only the compiler stage:
+# codegen and shader tools are separate requirements.
+if [ "${ON_DEVICE_TOOLS:-0}" = 1 ]; then
+  LLVM_OUT=$ROOT/build/android-llvm/out
+  for tool in clang lld; do
+    if [ ! -x "$LLVM_OUT/$tool" ]; then
+      echo "ON_DEVICE_TOOLS=1 but $LLVM_OUT/$tool is missing; run tools/android/build_llvm.sh first" >&2
+      exit 1
+    fi
+  done
+  cp "$LLVM_OUT/clang" stage/lib/arm64-v8a/libclang.so
+  cp "$LLVM_OUT/lld" stage/lib/arm64-v8a/libld.lld.so
+  chmod 755 stage/lib/arm64-v8a/libclang.so stage/lib/arm64-v8a/libld.lld.so
+fi
+
 # Fail early with a useful message rather than producing a partial APK when a native
 # dependency or Android build-tools component is missing.
 for required in "$BT/aapt2" "$BT/d8" "$BT/zipalign" "$BT/apksigner" "$JAR" \
