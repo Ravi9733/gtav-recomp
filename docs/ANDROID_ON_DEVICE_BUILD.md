@@ -24,14 +24,22 @@ This document tracks the separate Android path. The desktop build remains unchan
 - Android ARM64 ReXGlue codegen build workflow and artifact.
 - Android ARM64 clang/LLD build script and workflow.
 - APK packaging flags `ON_DEVICE_CODEGEN=1` and `ON_DEVICE_TOOLS=1`.
+- Android ARM64 clang/LLD workflow run #5 completed successfully on commit
+  `6dcae6720755c3c0d952120fc14e81c312a010b8`; its AArch64 verification step passed and
+  artifact `android-arm64-clang-lld-api30` was uploaded (about 50.6 MB).
+- `OnDeviceToolchain.java` now checks the extracted native-library directory, validates
+  ELF AArch64 identity and executable permission, and probes packaged clang/LLD/ReXGlue
+  with `--version`. Setup UI exposes this as **Check on-device build tools**. This is a
+  runtime preflight only; it is not yet an end-to-end compiler or game build test.
 
 These are toolchain groundwork only. They are not yet a working on-device build.
 
 ## Required implementation sequence
 
-1. **Runtime tool discovery:** resolve the APK's extracted native-library directory and
-   verify that packaged executables are present, executable, AArch64, and runnable on the
-   supported Android API level. Do not execute from shared storage.
+1. **Runtime tool discovery (initial preflight added):** the setup screen now checks the
+   extracted native-library directory and tries each packaged tool with `--version`. It still
+   needs an on-device APK test on supported devices and dependency validation. Do not execute
+   from shared storage.
 2. **On-device process runner:** provide a tested Android process-launch path for codegen,
    clang, LLD, XenosRecomp, and DXC, with private writable working directories, cancellation,
    output capture, and clear error reporting.
