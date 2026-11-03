@@ -486,12 +486,12 @@ struct Child {
       if (dup2(out, STDOUT_FILENO) < 0 || dup2(out, STDERR_FILENO) < 0) _exit(126);
       if (out > STDERR_FILENO) close(out);
       if (chdir(cwd.c_str()) != 0) {
-        const char message[] = "Android tool: chdir failed\\n";
+        const char message[] = "Android tool: chdir failed\n";
         write(STDERR_FILENO, message, sizeof(message) - 1);
         _exit(126);
       }
       execve(argv[0], argv.data(), environ);
-      const char message[] = "Android tool: execve failed\\n";
+      const char message[] = "Android tool: execve failed\n";
       write(STDERR_FILENO, message, sizeof(message) - 1);
       _exit(127);
     }
