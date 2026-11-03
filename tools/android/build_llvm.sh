@@ -6,8 +6,13 @@
 # lets an app execute files from its native library folder.
 #   tools/android/build_llvm.sh [JOBS]   -> build/android-llvm/out/{clang,lld}
 # Memory: about 1.5 GB per job while compiling and ~4 GB while linking clang; check `free` first.
-set -e
-source ~/android-tools/env.sh
+set -euo pipefail
+# Local developer machines may keep Android paths in env.sh; CI supplies ANDROID_NDK_HOME directly.
+if [ -f "$HOME/android-tools/env.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/android-tools/env.sh"
+fi
+: "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to an installed Android NDK}"
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VER=19.1.5
 JOBS=${1:-3}
