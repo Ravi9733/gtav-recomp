@@ -2,6 +2,13 @@ name: Android ReXGlue codegen tool
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-codegen.yml"
+      - "tools/android/app/java/**"
+      - "loader/src/install.cpp"
+      - "gtav/src/android_setup_jni.cpp"
 
 permissions:
   contents: read
