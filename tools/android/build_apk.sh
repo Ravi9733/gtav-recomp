@@ -63,6 +63,13 @@ if [ "${ON_DEVICE_TOOLS:-0}" = 1 ]; then
       exit 1
     fi
   done
+  READELF=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+  for tool in clang lld; do
+    if ! "$READELF" -h "$LLVM_OUT/$tool" | grep -q "Machine:.*AArch64"; then
+      echo "$LLVM_OUT/$tool is not an AArch64 ELF executable" >&2
+      exit 1
+    fi
+  done
   cp "$LLVM_OUT/clang" stage/lib/arm64-v8a/libclang.so
   cp "$LLVM_OUT/lld" stage/lib/arm64-v8a/libld.lld.so
   chmod 755 stage/lib/arm64-v8a/libclang.so stage/lib/arm64-v8a/libld.lld.so
