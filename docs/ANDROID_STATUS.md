@@ -87,6 +87,7 @@ The first `build_sdk.sh` run now fetches the pinned ReXGlue SDK revision and app
 
 ```sh
 tools/android/build_sdk.sh            # SDK for arm64-v8a (NDK r29, API 30, armv8.2-a+lse)
+tools/android/build_host_codegen.sh   # optional: build Linux host codegen; build_game.sh runs it if missing
 tools/android/build_game.sh           # libmain.so (codegen runs with the host rexglue)
 tools/android/make_spirv.sh           # game SPIR-V for Adreno -> build/android/spirv (push it)
 tools/android/build_apk.sh install    # debug APK without Gradle (SDLActivity + GameActivity)
