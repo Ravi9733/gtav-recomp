@@ -1,0 +1,46 @@
+name: Android on-device compiler tools
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-llvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+          sdkmanager "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Build Android ARM64 clang and lld
+        run: bash tools/android/build_llvm.sh 2
+
+      - name: Verify Android executables
+        run: |
+          READELF="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          for tool in clang lld; do
+            test -x "build/android-llvm/out/$tool"
+            "$READELF" -h "build/android-llvm/out/$tool" | tee "$tool-elf.txt"
+            grep -q "Machine:.*AArch64" "$tool-elf.txt"
+          done
+
+      - name: Upload Android compiler tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-clang-lld-api30
+          path: |
+            build/android-llvm/out/clang
+            build/android-llvm/out/lld
+          if-no-files-found: error
