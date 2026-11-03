@@ -1,0 +1,64 @@
+name: Android on-device LLVM toolchain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/android/build_llvm.sh"
+      - ".github/workflows/android-llvm.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-llvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake git xz-utils
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+          mkdir -p "$HOME/android-tools"
+          cat > "$HOME/android-tools/env.sh" <<'EOF'
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/29.0.14206865"
+          EOF
+
+      - name: Build self-contained Android ARM64 clang and lld
+        env:
+          JOBS: "2"
+        run: bash tools/android/build_llvm.sh "$JOBS"
+
+      - name: Verify tool architecture and dynamic dependencies
+        run: |
+          TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          for tool in clang lld; do
+            test -s "build/android-llvm/out/$tool"
+            "$TOOLCHAIN/llvm-readelf" -h "build/android-llvm/out/$tool" > "$tool.elf.txt"
+            grep -q "Machine:.*AArch64" "$tool.elf.txt"
+            "$TOOLCHAIN/llvm-readelf" -l "build/android-llvm/out/$tool" | grep -q "LOAD"
+          done
+          mkdir -p android-llvm-artifact
+          install -m 755 build/android-llvm/out/clang android-llvm-artifact/clang
+          install -m 755 build/android-llvm/out/lld android-llvm-artifact/lld
+          cp clang.elf.txt lld.elf.txt android-llvm-artifact/
+
+      - name: Upload Android LLVM tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-llvm-arm64-api30
+          path: android-llvm-artifact/
+          if-no-files-found: error
+          retention-days: 90
