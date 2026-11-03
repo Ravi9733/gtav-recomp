@@ -11,19 +11,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - name: Checkout Android setup branch
+      - name: Checkout main branch
         uses: actions/checkout@v4
-        with:
-          ref: android-on-device-setup
 
-      - name: Install Android NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install build tools and NDK
+      - name: Install build tools and Android NDK
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build cmake git
-          sdkmanager "ndk;29.0.14206865"
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
       - name: Fetch pinned ReXGlue SDK and submodules
@@ -55,8 +56,8 @@ jobs:
 
       - name: Verify Android executable architecture
         run: |
-          TOOL="rexglue-sdk/out/android-arm64/rexglue"
-          test -x "$TOOL"
+          TOOL="$(find build/rexglue-android rexglue-sdk/out -type f -name rexglue -perm -111 | head -n1)"
+          test -n "$TOOL"
           "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h "$TOOL" | tee android-codegen-elf.txt
           grep -q "Machine:.*AArch64" android-codegen-elf.txt
           mkdir -p android-codegen-artifact
