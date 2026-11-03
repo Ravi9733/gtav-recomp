@@ -300,9 +300,59 @@ public class SetupActivity extends Activity {
         }, "gtav-setup").start();
     }
 
+    /**
+     * Copies optional PC-free setup tools from APK assets into app-private executable storage.
+     * Shared/external storage is mounted noexec, so child tools must live under getFilesDir().
+     * A normal release APK without these assets remains compatible with the existing game-pack flow.
+     */
+    private String prepareOnDeviceTools() {
+        final String[] required = {"rexglue", "clang", "lld"};
+        try {
+            String[] packaged = getAssets().list("tools");
+            if (packaged == null || packaged.length == 0) return null; // legacy pack-based APK
+            File dir = new File(getFilesDir(), "tools");
+            if (!dir.exists() && !dir.mkdirs()) return "Could not create private tools folder.";
+            byte[] buffer = new byte[1 << 16];
+            for (String name : required) {
+                boolean found = false;
+                for (String item : packaged) if (name.equals(item)) found = true;
+                if (!found) return "The APK has an incomplete on-device tools bundle (missing " + name + ").";
+                File target = new File(dir, name);
+                File temp = new File(dir, name + ".new");
+                try (InputStream in = getAssets().open("tools/" + name);
+                     FileOutputStream out = new FileOutputStream(temp)) {
+                    for (int n; (n = in.read(buffer)) != -1;) out.write(buffer, 0, n);
+                    out.getFD().sync();
+                }
+                try (FileInputStream in = new FileInputStream(temp)) {
+                    byte[] elf = new byte[20];
+                    if (in.read(elf) != elf.length || elf[0] != 0x7f || elf[1] != 'E' ||
+                        elf[2] != 'L' || elf[3] != 'F' || elf[4] != 2 || elf[5] != 1 ||
+                        (elf[18] & 0xff) != 183 || elf[19] != 0) {
+                        temp.delete();
+                        return "Invalid Android ARM64 executable in APK: " + name;
+                    }
+                }
+                if (target.exists() && !target.delete()) {
+                    temp.delete();
+                    return "Could not replace private tool: " + name;
+                }
+                if (!temp.renameTo(target) || !target.setExecutable(true, true) || !target.canExecute())
+                    return "Could not prepare executable tool: " + name;
+            }
+            onLog("Prepared Android ARM64 setup tools in private storage.");
+            return null;
+        } catch (Exception e) {
+            Log.e(TAG, "prepare on-device tools", e);
+            return "Could not prepare on-device tools: " + e;
+        }
+    }
+
     /** On the install thread. null = done. */
     private String runInstall() {
         try {
+            String toolsError = prepareOnDeviceTools();
+            if (toolsError != null) return toolsError;
             if (packCurrent() != null || picked[PACK] != null) {
                 if (picked[PACK] == null) return packCurrent();
                 String e = importPack(picked[PACK]);
