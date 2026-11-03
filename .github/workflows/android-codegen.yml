@@ -34,6 +34,15 @@ jobs:
           "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
+      - name: Compile Android installer and JNI syntax
+        run: |
+          CXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
+          SYSROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          "$CXX" --target=aarch64-linux-android30 --sysroot="$SYSROOT" -stdlib=libc++ \
+            -std=c++23 -fsyntax-only loader/src/install.cpp
+          "$CXX" --target=aarch64-linux-android30 --sysroot="$SYSROOT" -stdlib=libc++ \
+            -std=c++23 -fsyntax-only gtav/src/android_setup_jni.cpp
+
       - name: Fetch pinned ReXGlue SDK and submodules
         run: |
           git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
