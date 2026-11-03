@@ -10,6 +10,11 @@ if [ ! -x "$HOST_REXGLUE" ]; then
   bash "$ROOT/tools/android/build_host_codegen.sh"
 fi
 BUILD=$ROOT/build/android
+ANDROID_SDK_CONFIG="$ROOT/rexglue-sdk/out/install/android-arm64/lib/cmake/rexglue/rexglueConfig.cmake"
+if [ ! -f "$ANDROID_SDK_CONFIG" ]; then
+  echo "Android ReXGlue SDK is missing; run tools/android/build_sdk.sh first." >&2
+  exit 1
+fi
 JOBS=${JOBS:-4}
 step=${1:-all}
 if [ "$step" = configure ] || [ "$step" = all ]; then
