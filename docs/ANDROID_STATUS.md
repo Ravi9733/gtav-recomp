@@ -69,7 +69,7 @@ libgtav_fast -> librexruntime -> libc), so the game finds the hooks/bridge and l
 the game functions, both at load (`-z now`). The game library must be in private storage
 (`getFilesDir()`): shared storage is noexec.
 
-Player flow: PC launcher "Build for Android" / `--android` (install.cpp RunAndroid: codegen +
+Pack integrity update (11-03): Android pack format 2 records SHA-256 and byte size for `libgtav_game.so`. The phone verifies both before replacing an existing library, and checks the installed library again when deciding whether the pack is current. Older format-1 packs must be rebuilt/imported again with the matching updated tools. This protects against incomplete/corrupt transfers; it does not add on-device compilation.\n\nPlayer flow: PC launcher "Build for Android" / `--android` (install.cpp RunAndroid: codegen +
 reference check, freestanding aarch64-linux-android30 compile with the bundled LLVM 19, lld
 `-flavor gnu` against `android/link/`, Adreno shaders through adreno_shader_fix.cpp) ->
 `android/gtav-android-pack.zip` (libgtav_game.so, spirv/, expected.txt, pack.txt with the hash of
