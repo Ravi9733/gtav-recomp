@@ -104,9 +104,37 @@ done
 
 cp "${LIBS[@]}" "$SDK_LIB/librexruntime.so" "$SDK_LIB/librexgpu-xenos.so" \
    "$NDK_LIBCXX" stage/lib/arm64-v8a/
-"$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug stage/lib/arm64-v8a/*.so
+STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+READELF="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+"$STRIP" --strip-debug stage/lib/arm64-v8a/*.so
+
+# Stripping and APK assembly must not silently lose the executable bit or corrupt the
+# optional on-device tools. Check the staged ELF files before putting them in the APK.
+for tool in libclang.so libld.lld.so librexglue.so; do
+  file="stage/lib/arm64-v8a/$tool"
+  [ -f "$file" ] || continue
+  if [ ! -x "$file" ]; then
+    echo "Packaged tool lost its executable bit: $file" >&2
+    exit 1
+  fi
+  if ! "$READELF" -h "$file" | grep -q "Machine:.*AArch64"; then
+    echo "Packaged tool is not an AArch64 ELF after stripping: $file" >&2
+    exit 1
+  fi
+done
+
 cp base.apk unaligned.apk
 (cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib)
+# Confirm the APK actually contains every optional tool requested by the caller.
+APK_LIST=$(unzip -Z1 unaligned.apk)
+for pair in "ON_DEVICE_TOOLS:lib/libclang.so" "ON_DEVICE_TOOLS:lib/libld.lld.so" "ON_DEVICE_CODEGEN:lib/librexglue.so"; do
+  flag=${pair%%:*}
+  entry=${pair#*:}
+  if [ "${!flag:-0}" = 1 ] && ! grep -Fxq "$entry" <<< "$APK_LIST"; then
+    echo "Requested on-device tool is missing from APK: $entry" >&2
+    exit 1
+  fi
+done
 
 "$BT/zipalign" -f -P 16 4 unaligned.apk aligned.apk
 if [ ! -f "$KEY" ]; then
