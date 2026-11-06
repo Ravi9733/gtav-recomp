@@ -32,7 +32,12 @@ extern "C" void* gtav_android_turnip_get_gipa();
         // GTAV_ANDROID_TURNIP_VOLK_BRIDGE: use one injected loader for every Vulkan call.
         auto turnipGipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
             gtav_android_turnip_get_gipa());
-        VkResult res = turnipGipa ? volkInitializeCustom(turnipGipa) : volkInitialize();
+        VkResult res = VK_SUCCESS;
+        if (turnipGipa) {
+            volkInitializeCustom(turnipGipa);
+        } else {
+            res = volkInitialize();
+        }
 #else
         VkResult res = volkInitialize();
 #endif"""
