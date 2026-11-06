@@ -81,10 +81,36 @@ if [ "${TURNIP:-0}" = 1 ]; then
   done
 fi
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug stage/lib/arm64-v8a/*.so
-cp base.apk unaligned.apk
-(cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib && if [ -d assets ]; then zip -q -X -r ../unaligned.apk assets; fi)
+# Repack the aapt2 base APK so resources.arsc is explicitly STORED (not deflated).
+# Android 11+ rejects compressed resources.arsc with INSTALL_FAILED_INVALID_APK (-124).
+rm -rf "$OUT/repack" "$OUT/repacked.apk" "$OUT/unaligned.apk" "$OUT/aligned.apk"
+mkdir -p "$OUT/repack"
+unzip -q base.apk -d "$OUT/repack"
+test -s "$OUT/repack/resources.arsc"
+(cd "$OUT/repack" && zip -q -X -r "$OUT/repacked.apk" . -x 'resources.arsc' 'lib/*')
+(cd "$OUT/repack" && zip -q -X -0 "$OUT/repacked.apk" resources.arsc)
+(cd stage && zip -q -X "$OUT/repacked.apk" classes.dex && zip -q -X -0 -r "$OUT/repacked.apk" lib && if [ -d assets ]; then zip -q -X -r "$OUT/repacked.apk" assets; fi)
 
-"$BT/zipalign" -f -P 16 4 unaligned.apk aligned.apk
+# Fail the build before signing if the resource table is compressed or duplicated.
+python3 - "$OUT/repacked.apk" <<'PY'
+import sys, zipfile
+apk = sys.argv[1]
+with zipfile.ZipFile(apk) as z:
+    entries = [i for i in z.infolist() if i.filename == "resources.arsc"]
+    if len(entries) != 1:
+        raise SystemExit(f"Expected exactly one resources.arsc, found {len(entries)}")
+    if entries[0].compress_type != zipfile.ZIP_STORED:
+        raise SystemExit("resources.arsc must be stored without compression")
+    bad_libs = [i.filename for i in z.infolist()
+                if i.filename.startswith("lib/") and i.filename.endswith(".so")
+                and i.compress_type != zipfile.ZIP_STORED]
+    if bad_libs:
+        raise SystemExit("Native libraries must be stored: " + ", ".join(bad_libs))
+print("APK ZIP check passed: resources.arsc and native libraries are STORED")
+PY
+
+"$BT/zipalign" -f -P 16 4 repacked.apk aligned.apk
+"$BT/zipalign" -c -P 16 4 aligned.apk
 if [ ! -f "$KEY" ]; then
   keytool -genkeypair -keystore "$KEY" -storepass android -keypass android -alias androiddebugkey \
     -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" >/dev/null
