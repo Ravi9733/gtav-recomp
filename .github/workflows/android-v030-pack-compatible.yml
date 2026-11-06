@@ -77,10 +77,14 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: "2"
         run: |
           SDK="$GITHUB_WORKSPACE/rexglue-sdk/out/install/android-arm64"
-          # Prefer the patched Plume interface headers over any SDK-installed copy.
-          grep -nE "setGraphicsDescriptorSetDynamic|beginOcclusionQuery|endOcclusionQuery|setFragmentShadingRate" thirdparty/plume/plume_render_interface.h
+          # Locate the header actually unpacked from the pinned Plume source and verify the patch landed.
+          PLUME_HEADER="$(find thirdparty/plume -name plume_render_interface.h -type f -print -quit)"
+          test -n "$PLUME_HEADER"
+          echo "Using patched Plume header: $PLUME_HEADER"
+          grep -nE "setGraphicsDescriptorSetDynamic|beginOcclusionQuery|endOcclusionQuery|setFragmentShadingRate" "$PLUME_HEADER"
+          PLUME_INCLUDE="$(dirname "$PLUME_HEADER")"
           cmake -S gtav -B build/android-dll -G Ninja \
-            -DCMAKE_CXX_FLAGS="-I$GITHUB_WORKSPACE/thirdparty/plume" \
+            -DCMAKE_CXX_FLAGS="-I$PLUME_INCLUDE" \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-30 \
             -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
