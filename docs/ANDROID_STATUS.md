@@ -206,3 +206,16 @@ The AdrenoToolsTest reference implementation demonstrates opening a custom Vulka
 7. Test system fallback first, then a known-compatible Adreno 730 Turnip package on a Snapdragon 8 Gen 1/8+ Gen 1 device. Check startup, swapchain, shader/pipeline creation, device loss, resume-from-background, and long-session stability before shipping.
 
 No driver archive has been assumed compatible with Adreno 730. No custom driver is currently loaded by the game; this section records verified implementation requirements, not a completed integration.
+
+### Volk custom-loader integration point (2026-11-06)
+
+A source-level check of the exact upstream Plume Vulkan backend identified a narrower integration point than a full Vulkan dispatch rewrite: Plume includes Volk (volk.h) and its VulkanInterface constructor currently calls volkInitialize() immediately before vkCreateInstance, followed by volkLoadInstance(instance). Volk exposes volkInitializeCustom(PFN_vkGetInstanceProcAddr), so the Android custom loader can be injected before the first Plume interface is constructed.
+
+Implementation direction:
+
+- Add a Plume-side setter (in the maintained plume-gtav.patch) for a process-wide PFN_vkGetInstanceProcAddr; on Android call volkInitializeCustom() with it, otherwise preserve the existing volkInitialize() path.
+- In the Android renderer startup, open libadrenotools first, resolve vkGetInstanceProcAddr from its returned loader handle, and set the Plume hook before CreateVulkanInterface().
+- Keep the returned loader handle alive for the process lifetime. If opening the custom loader or resolving its entry point fails, select the normal volkInitialize() system-loader path before Plume initialization; do not switch loaders after Vulkan objects exist.
+- After instance/device enumeration, collect VkPhysicalDeviceDriverProperties through Plume and surface the confirmed driver identity. The UI must distinguish requested driver from active driver.
+
+This is a viable concrete injection seam because Volk already centralizes Vulkan entry-point loading. It still requires the pinned libadrenotools + linker-namespace build, Android JNI/private-storage driver import, a maintained Plume patch, APK packaging changes, and an arm64 build/device test. None of those are represented as complete by this note.
