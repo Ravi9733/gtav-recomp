@@ -229,17 +229,13 @@ index 4fdc4bf..fe25401 100644
  #include <climits>
  #include <unordered_map>
  
-@@ -28,6 +37,35 @@
+@@ -28,6 +37,27 @@
  // - Fix resource pools.
  
  namespace plume {
 +    // Counters for the host renderer's per-frame stats: render passes begun, barrier calls.
 +    // Export counters consumed by the separately dlopen'd Android game library.
-+#if defined(__GNUC__)
-+    __attribute__((visibility("default"))) uint32_t g_statRenderPasses = 0;
-+#else
-+    uint32_t g_statRenderPasses = 0;
-+#endif
++    extern uint32_t g_statRenderPasses;
 +    uint32_t g_statBarriers = 0;
 +    bool g_exactBarrierStages = true;  // strip TOP_OF_PIPE / BOTTOM_OF_PIPE next to other stages (see barriers)
 +    // Every render pass also declares its colour attachments as input attachments (same indices,
@@ -250,11 +246,7 @@ index 4fdc4bf..fe25401 100644
 +    // (LOAD_OP_CLEAR) instead of a LOAD followed by vkCmdClearAttachments: tilers (Adreno, Mali) skip
 +    // reading the old contents into tile memory. g_statLoadClears counts the attachments so cleared.
 +    bool g_clearLoadOps = false;
-+#if defined(__GNUC__)
-+    __attribute__((visibility("default"))) uint32_t g_statLoadClears = 0;
-+#else
-+    uint32_t g_statLoadClears = 0;
-+#endif
++    extern uint32_t g_statLoadClears;
 +    uint32_t g_statClearsInPass = 0, g_statClearsPartial = 0;  // clears that could not become load ops, and why
 +
 +    static std::vector<uint8_t> &pipelineCacheSeed() {
