@@ -188,7 +188,7 @@ jobs:
           echo "Built APK shell:     $ACTUAL"
           test "$ACTUAL" = "$EXPECTED"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee android-apk-artifact/apk-badging.txt
-          grep -q "package: name='com.gtavrecomp.compat'" android-apk-artifact/apk-badging.txt
+          grep -q "package: name='com.gtavrecomp.compat0302'" android-apk-artifact/apk-badging.txt
           cp "$APK" android-apk-artifact/GTAV-Recomp-v0.3.0-Pack-Compatible.apk
           sha256sum android-apk-artifact/GTAV-Recomp-v0.3.0-Pack-Compatible.apk > android-apk-artifact/SHA256SUMS.txt
 
