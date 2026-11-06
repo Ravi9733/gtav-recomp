@@ -84,6 +84,12 @@ void ApplyPreset(bool best) {
   SetBool("gtav_native_tile_penumbra_all", best);
 #endif
   SetBool("gtav_native_async_pipelines", !best);
+  // The image-quality profile must never inherit a reduced-detail texture setting from an
+  // earlier performance experiment. The performance profile leaves texture quality untouched.
+  if (best) {
+    rex::cvar::SetFlagByName("gtav_native_texture_min_lod", "0");
+    rex::cvar::SetFlagByName("gtav_native_max_anisotropy", "16");
+  }
   rex::cvar::SetFlagByName("gpu_skip_rendering_lag_ms", best ? kSafeGpuLag : kFastGpuLag);
 #ifdef __ANDROID__
   // Phones: "Best image" is also the steady one, locked at 30 fps with vsync (sustained play heats
