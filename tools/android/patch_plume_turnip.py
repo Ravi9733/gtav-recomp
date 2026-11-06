@@ -104,5 +104,15 @@ if driver_marker not in text:
 #endif"""
     text = text[:at] + text[at:].replace(needle, replacement, 1)
 
+# Fail closed if a future upstream Plume change or edit drops either integration seam.
+required = (
+    "volkInitializeCustom(turnipGipa);",
+    "GTAV_ANDROID_DRIVER_PROPERTIES",
+    "gtav_android_turnip_report_driver(driverProperties.driverName",
+)
+missing = [marker for marker in required if marker not in text]
+if missing:
+    raise SystemExit("Turnip Plume patch verification failed: " + ", ".join(missing))
+
 source.write_text(text)
-print("Applied Android Turnip Volk bridge and Vulkan driver-identity logging to Plume.")
+print("Applied and verified Android Turnip Volk bridge and Vulkan driver-identity logging to Plume.")
