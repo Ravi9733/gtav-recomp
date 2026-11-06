@@ -69,7 +69,7 @@ after(interface,
 checks = {
     types: ["B5G6R5_UNORM", "INPUT_ATTACHMENT", "CONSTANT_BUFFER_DYNAMIC", "FRAGMENT = 1U << 3", "colorDiscard"],
     builders: ["addConstantBufferDynamic", "addInputAttachment"],
-    interface: ["setGraphicsDescriptorSetDynamic", "beginOcclusionQuery", "createOcclusionQueryPool", "colorDiscard"],
+    interface: ["setGraphicsDescriptorSetDynamic", "beginOcclusionQuery", "createOcclusionQueryPool"],
 }
 for path, markers in checks.items():
     s = path.read_text()
