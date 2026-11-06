@@ -10,6 +10,8 @@ on:
       - "gtav/src/native/turnip_loader.cpp"
       - "gtav/src/native/menu.cpp"
       - "tools/android/app/java/com/gtavrecomp/app/**"
+      - "tools/android/build_apk.sh"
+      - "gtav/CMakeLists.txt"
       - ".github/workflows/android-turnip-loader.yml"
 
 permissions:
