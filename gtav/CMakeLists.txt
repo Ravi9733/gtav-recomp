@@ -281,7 +281,9 @@ if(ANDROID)
     # crashes later at dlopen(libgtav_game.so).
     target_link_options(gtav PRIVATE
         "-Wl,-u,_ZN5plume18g_statRenderPassesE"
-        "-Wl,-u,_ZN5plume16g_statLoadClearsE")
+        "-Wl,-u,_ZN5plume16g_statLoadClearsE"
+        "-Wl,--export-dynamic-symbol=_ZN5plume18g_statRenderPassesE"
+        "-Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE")
 endif()
 
 # The texture decoder uses the SDK's Xenos texture helpers (TextureInfo, tiling), which live in
