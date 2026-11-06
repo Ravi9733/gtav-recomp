@@ -268,3 +268,8 @@ TURNIP=1 tools/android/build_apk.sh
 ```
 
 This is implementation source, not a verified release. The workflow/device build has not yet been confirmed here. The remaining critical verification is to build the APK, test system-Vulkan fallback, test a compatible Adreno 730 Turnip archive, and query `VkPhysicalDeviceDriverProperties` (driverName/driverInfo) after Plume enumerates the physical device. Do not label Turnip active until that property check succeeds. The new code does not modify the installed game pack, game data, or saves.
+
+
+### Driver identity reporting added
+
+The Plume patch step now also queries `VkPhysicalDeviceDriverProperties` where the device exposes Vulkan 1.2 or `VK_KHR_driver_properties`. It logs the driver's reported `driverName` and `driverInfo`, and forwards those exact strings to the Android Control Center. The UI labels Turnip as verified only when the Vulkan-reported driver name contains "Turnip"; otherwise it shows the reported driver name without claiming Turnip is active. Runtime/device confirmation is still pending.
