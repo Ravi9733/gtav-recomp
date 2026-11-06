@@ -219,3 +219,31 @@ Implementation direction:
 - After instance/device enumeration, collect VkPhysicalDeviceDriverProperties through Plume and surface the confirmed driver identity. The UI must distinguish requested driver from active driver.
 
 This is a viable concrete injection seam because Volk already centralizes Vulkan entry-point loading. It still requires the pinned libadrenotools + linker-namespace build, Android JNI/private-storage driver import, a maintained Plume patch, APK packaging changes, and an arm64 build/device test. None of those are represented as complete by this note.
+
+
+## Turnip implementation work started (2026-11-06)
+
+The first reproducible build/package slice is now committed on `android-turnip-ios-ui`:
+
+- `tools/android/build_turnip_loader.sh` checks out the pinned `bylaws/libadrenotools` revision
+  `8fae8ce254dfc1344527e05301e43f37dea2df80`, initializes its `liblinkernsbypass` submodule,
+  builds arm64-v8a for Android API 30, and verifies the five expected shared libraries.
+- `tools/android/build_apk.sh` accepts `TURNIP=1` and packages those libraries into
+  `lib/arm64-v8a`. The default APK path is unchanged when `TURNIP` is unset.
+
+Build sequence on the Android/Linux build host:
+
+```sh
+tools/android/build_turnip_loader.sh
+TURNIP=1 tools/android/build_apk.sh
+```
+
+Important boundary: this packages the loader runtime; it does **not** yet activate Turnip in the
+renderer. The next code step is to obtain the Android app's private files path and
+`ApplicationInfo.nativeLibraryDir`, stage and validate a user-imported driver in app-internal
+storage, call `adrenotools_open_libvulkan`, and pass the resolved
+`PFN_vkGetInstanceProcAddr` into Plume's Volk initialization before its first Vulkan instance.
+Until that hook and driver-property verification land, the UI must not claim Turnip is active.
+
+The iOS-style menu work remains on the same branch. APK packaging remains opt-in for the new
+loader libraries, and this change does not touch the installed game pack, save files, or user data.
