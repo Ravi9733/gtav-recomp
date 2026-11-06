@@ -283,7 +283,8 @@ if(ANDROID)
         "-Wl,-u,_ZN5plume18g_statRenderPassesE"
         "-Wl,-u,_ZN5plume16g_statLoadClearsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume18g_statRenderPassesE"
-        "-Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE")
+        "-Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE"
+        "-Wl,--export-dynamic")
 endif()
 
 # The texture decoder uses the SDK's Xenos texture helpers (TextureInfo, tiling), which live in
