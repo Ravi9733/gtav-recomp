@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
+#include <cctype>
 #include <fstream>
 #include <mutex>
 #include <string>
