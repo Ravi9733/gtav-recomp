@@ -152,3 +152,22 @@ wait no longer spins (poll sentinel woke it), controller pumping rate-limited.
   tools/native/count_squares.py, tools/android/walk_squares.sh --ab (live A/B in one walk).
 - Final sustained run (cool start to 44 C battery, GPU 317-492 MHz): 24-36 fps, mostly 26-35.
 - Measured off: load-op clears, record thread, coarse shading (available as cvars).
+
+
+## Turnip integration audit (11-06)
+
+The Android native renderer creates its Plume Vulkan interface in `Renderer::Init`, enumerates
+physical-device names with `getDeviceNames()`, and selects the first name matching
+`gtav_native_device` (Android default: `Adreno`). This is a physical-GPU preference only; it does
+not select or load a Vulkan ICD/driver. The current Android APK does not bundle an in-app Turnip
+loader, and the renderer does not report Vulkan `driverName` / `driverInfo` yet. The settings menu
+now states this distinction so it cannot be mistaken for a working Turnip switch.
+
+Do not add desktop-only `VK_ICD_FILENAMES` / `VK_DRIVER_FILES` environment-variable logic as a
+shortcut on Android. The next implementation step is to integrate a supported Android Vulkan
+loader/driver-loading mechanism (or explicitly support a verified system-installed driver), expose
+the actual active Vulkan driver identity from the physical-device properties, and only then add a
+Turnip selection/status control. Validate ABI, Android loader compatibility, and the Adreno 730
+build before shipping; no driver archive is assumed compatible merely because it is arm64.
+
+This audit is source-only. It does not alter game data, saves, the Android pack, or the APK.
