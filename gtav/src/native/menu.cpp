@@ -238,6 +238,16 @@ void Build(uint32_t fps, double frame_ms) {
   }
   ImGui::Separator();
   ImGui::TextUnformatted("TEXTURE STREAMING");
+  if (ImGui::Button("Restore full texture detail")) {
+    // Restore the original-resolution mip choice and the strongest filtering cap without
+    // changing game files or forcing expensive full-cache validation every frame.
+    rex::cvar::SetFlagByName("gtav_native_texture_min_lod", "0");
+    rex::cvar::SetFlagByName("gtav_native_max_anisotropy", "16");
+    rex::cvar::SetFlagByName("gtav_native_texture_recheck_frames", "4");
+    changed = true;
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Full-resolution mip levels, up to 16x anisotropic filtering, and Androids 4-frame texture re-check interval.");
   check("Exact texture checks", "gtav_native_exact_cache",
         "On: every texture is fully re-checked each frame: no stale gray blocks, but more CPU time.\n"
         "Off: large textures are spot-checked between full checks (faster).");
