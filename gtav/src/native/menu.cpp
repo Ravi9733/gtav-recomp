@@ -295,7 +295,20 @@ void Build(uint32_t fps, double frame_ms) {
   const char* turnipRequest = std::getenv("GTAV_TURNIP_ENABLED");
   const bool turnipRequested = turnipRequest && std::string(turnipRequest) == "1";
   ImGui::Text("Turnip request: %s", turnipRequested ? "ON (selected driver)" : "OFF (system Vulkan)");
-  ImGui::TextDisabled("Request status is not proof of the active driver. Check the GtavTurnip startup log for loader success.");
+  const char* activeDriver = std::getenv("GTAV_VULKAN_DRIVER_NAME");
+  const char* activeDriverInfo = std::getenv("GTAV_VULKAN_DRIVER_INFO");
+  if (activeDriver && *activeDriver) {
+    std::string driverLower(activeDriver);
+    std::transform(driverLower.begin(), driverLower.end(), driverLower.begin(),
+                   [](unsigned char ch) { return char(std::tolower(ch)); });
+    if (driverLower.find("turnip") != std::string::npos)
+      ImGui::Text("Active Vulkan driver: %s  [verified]", activeDriver);
+    else
+      ImGui::Text("Active Vulkan driver: %s", activeDriver);
+    if (activeDriverInfo && *activeDriverInfo) ImGui::TextDisabled("%s", activeDriverInfo);
+  } else {
+    ImGui::TextDisabled("Active Vulkan driver identity is not available from this driver.");
+  }
 #endif
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
