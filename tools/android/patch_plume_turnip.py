@@ -12,26 +12,37 @@ if not source.is_file():
 
 text = source.read_text()
 
-# Move the two cross-DSO counters into the host target. Defining them in libplume.a
-# allowed the Android linker to omit them from libgtav_fast.so's dynamic symbol table.
-render_passes = """#if defined(__GNUC__)
-    __attribute__((visibility("default"))) uint32_t g_statRenderPasses = 0;
-#else
-    uint32_t g_statRenderPasses = 0;
-#endif"""
-load_clears = """#if defined(__GNUC__)
-    __attribute__((visibility("default"))) uint32_t g_statLoadClears = 0;
-#else
-    uint32_t g_statLoadClears = 0;
-#endif"""
-if render_passes in text:
-    text = text.replace(render_passes, "    extern uint32_t g_statRenderPasses;", 1)
-elif "extern uint32_t g_statRenderPasses;" not in text:
-    raise SystemExit("Could not find Plume g_statRenderPasses definition; refusing an unsafe patch.")
-if load_clears in text:
-    text = text.replace(load_clears, "    extern uint32_t g_statLoadClears;", 1)
-elif "extern uint32_t g_statLoadClears;" not in text:
-    raise SystemExit("Could not find Plume g_statLoadClears definition; refusing an unsafe patch.")
+# Move the two cross-DSO counters into the host target. The Android source bundle's
+# Plume patch may format these definitions differently across upstream snapshots, so locate
+# the initialized definition line and remove its surrounding conditional block if present.
+def move_counter(name: str) -> None:
+    global text
+    marker = f"extern uint32_t {name};"
+    if marker in text:
+        return
+    lines = text.splitlines(keepends=True)
+    matches = [i for i, line in enumerate(lines)
+               if name in line and "=" in line and "0" in line and ";" in line]
+    if len(matches) != 1:
+        raise SystemExit(f"Expected one initialized Plume {name} definition, found {len(matches)}; refusing an unsafe patch.")
+    i = matches[0]
+    begin = i
+    finish = i + 1
+    # The known patched form is a small #if/#else/#endif visibility block. Remove the
+    # complete block rather than leaving unmatched preprocessor directives behind.
+    for j in range(i - 1, max(-1, i - 8), -1):
+        if lines[j].lstrip().startswith("#if"):
+            begin = j
+            break
+    for j in range(i + 1, min(len(lines), i + 8)):
+        if lines[j].lstrip().startswith("#endif"):
+            finish = j + 1
+            break
+    lines[begin:finish] = [f"    extern uint32_t {name};\\n"]
+    text = "".join(lines)
+
+move_counter("g_statRenderPasses")
+move_counter("g_statLoadClears")
 
 # Inject the app-owned libadrenotools GIPA before Plume initializes Volk. If Turnip is not
 # requested or the custom loader fails, Volk keeps its normal Android system-loader behavior.
