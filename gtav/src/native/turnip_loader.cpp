@@ -20,6 +20,13 @@ void Log(int priority, const char* message) {
 }
 }
 
+extern "C" void gtav_android_turnip_report_driver(const char* name, const char* info) {
+  if (name && *name) setenv("GTAV_VULKAN_DRIVER_NAME", name, 1);
+  if (info && *info) setenv("GTAV_VULKAN_DRIVER_INFO", info, 1);
+  __android_log_print(ANDROID_LOG_INFO, "GtavTurnip", "Vulkan driver identity: %s | %s",
+                      name ? name : "unknown", info ? info : "no driver info");
+}
+
 extern "C" void* gtav_android_turnip_get_gipa() {
   const char* enabled = std::getenv("GTAV_TURNIP_ENABLED");
   if (!enabled || std::strcmp(enabled, "1") != 0) return nullptr;
