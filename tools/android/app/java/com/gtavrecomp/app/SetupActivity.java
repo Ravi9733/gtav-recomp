@@ -112,7 +112,15 @@ public class SetupActivity extends Activity {
                 .setLongLabel("Run setup again (new game pack)")
                 .setIntent(i)
                 .build();
-            sm.setDynamicShortcuts(java.util.Collections.singletonList(info));
+            Intent gpuIntent = new Intent(this, DriverSettingsActivity.class)
+                .setAction(Intent.ACTION_MAIN)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+            android.content.pm.ShortcutInfo gpu = new android.content.pm.ShortcutInfo.Builder(this, "gpu-driver")
+                .setShortLabel("GPU driver settings")
+                .setLongLabel("GPU driver settings (Turnip)")
+                .setIntent(gpuIntent)
+                .build();
+            sm.setDynamicShortcuts(java.util.Arrays.asList(info, gpu));
         } catch (Exception e) {
             Log.w(TAG, "shortcut: " + e);
         }
