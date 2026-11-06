@@ -311,6 +311,7 @@ void Build(uint32_t fps, double frame_ms) {
     ImGui::TextDisabled("Active Vulkan driver identity is not available from this driver.");
   }
 #endif
+  ImGui::TextDisabled("Import or enable Turnip: long-press the app icon > GPU driver settings, then restart the game.");
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
   ImGui::TextDisabled("CONTROLS  ·  RB + Back opens menu  ·  D-pad + A selects  ·  B closes");
