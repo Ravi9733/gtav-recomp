@@ -175,7 +175,11 @@ jobs:
           unzip -q "$APK" -d apk-repack
           install -m 0644 /tmp/libgtav_fast.so apk-repack/lib/arm64-v8a/libgtav_fast.so
           rm -f repacked-unaligned.apk repacked-aligned.apk
-          (cd apk-repack && zip -q -X -r ../repacked-unaligned.apk . -x 'lib/*')
+          # Android 11+ requires resources.arsc to be STORED (not deflated)
+          # and aligned. Keep it out of the compressed archive pass.
+          test -s apk-repack/resources.arsc
+          (cd apk-repack && zip -q -X -r ../repacked-unaligned.apk . -x 'lib/*' 'resources.arsc')
+          (cd apk-repack && zip -q -X -0 ../repacked-unaligned.apk resources.arsc)
           (cd apk-repack && zip -q -X -0 -r ../repacked-unaligned.apk lib)
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -f -P 16 4 repacked-unaligned.apk repacked-aligned.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$HOME/android-tools/debug.keystore" --ks-pass pass:android --key-pass pass:android --out "$APK" repacked-aligned.apk
