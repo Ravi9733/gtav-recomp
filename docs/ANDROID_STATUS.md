@@ -273,3 +273,8 @@ This is implementation source, not a verified release. The workflow/device build
 ### Driver identity reporting added
 
 The Plume patch step now also queries `VkPhysicalDeviceDriverProperties` where the device exposes Vulkan 1.2 or `VK_KHR_driver_properties`. It logs the driver's reported `driverName` and `driverInfo`, and forwards those exact strings to the Android Control Center. The UI labels Turnip as verified only when the Vulkan-reported driver name contains "Turnip"; otherwise it shows the reported driver name without claiming Turnip is active. Runtime/device confirmation is still pending.
+
+
+### CI result: loader runtime
+
+GitHub Actions run `42186691984` completed successfully on 2026-11-06. It compiled the Android app Java sources (including the Turnip settings/import screen), syntax-checked the native Turnip bridge, built all five pinned libadrenotools arm64-v8a libraries with NDK r29/API 30, verified their ELF machine type, and uploaded artifact `adrenotools-turnip-loader-arm64-api30`. This is a loader-runtime build artifact, not a complete GTA V APK and not a device test. A follow-up run adds the Plume source-patch test and Vulkan driver-identity changes.
