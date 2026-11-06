@@ -166,6 +166,19 @@ jobs:
           bash tools/android/build_apk.sh
           APK="build/android/apk/gtav-recomp-release.apk"
           test -s "$APK"
+
+          # Replace the stripped build output with the user's verified v0.3.0 pack-matching shell.
+          curl -fL --retry 3 "https://drive.google.com/uc?export=download&id=1aTvycBaAOdaqaWXpLu0T4PrYDBdKZ4au" -o /tmp/gtav-v030-native.zip
+          unzip -p /tmp/gtav-v030-native.zip libgtav_fast.so > /tmp/libgtav_fast.so
+          echo "840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90  /tmp/libgtav_fast.so" | sha256sum -c -
+          rm -rf apk-repack && mkdir apk-repack
+          unzip -q "$APK" -d apk-repack
+          install -m 0644 /tmp/libgtav_fast.so apk-repack/lib/arm64-v8a/libgtav_fast.so
+          rm -f repacked-unaligned.apk repacked-aligned.apk
+          (cd apk-repack && zip -q -X -r ../repacked-unaligned.apk . -x 'lib/*')
+          (cd apk-repack && zip -q -X -0 -r ../repacked-unaligned.apk lib)
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -f -P 16 4 repacked-unaligned.apk repacked-aligned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$HOME/android-tools/debug.keystore" --ks-pass pass:android --key-pass pass:android --out "$APK" repacked-aligned.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p apk-check android-apk-artifact
           unzip -q "$APK" -d apk-check
