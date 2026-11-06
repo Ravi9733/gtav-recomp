@@ -59,10 +59,13 @@ jobs:
           echo "e0cc7ff6f045b8ff7b0f225178e8c800a66d2c774acd4e623e899e379eb5028c  /tmp/gtav-recomp-src.tar.xz" | sha256sum -c -
           mkdir -p /tmp/gtav-source
           tar -xJf /tmp/gtav-recomp-src.tar.xz -C /tmp/gtav-source \
-            gtav-recomp-src/rexglue-sdk \
             gtav-recomp-src/XenosRecomp \
             gtav-recomp-src/plume
-          mv /tmp/gtav-source/gtav-recomp-src/rexglue-sdk ./rexglue-sdk
+          # Use a real SDK checkout so every nested dependency (including CLI11 and FFmpeg) is
+          # initialized at its pinned gitlink; the source bundle's git-archive copy has no .git.
+          git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
+          git -C rexglue-sdk checkout f5337cdc947ff6d4c4196737e2c807a48f2a1fc2
+          git -C rexglue-sdk submodule update --init --recursive
           mkdir -p thirdparty
           mv /tmp/gtav-source/gtav-recomp-src/XenosRecomp thirdparty/XenosRecomp
           mv /tmp/gtav-source/gtav-recomp-src/plume thirdparty/plume
@@ -73,6 +76,8 @@ jobs:
           git -C rexglue-sdk apply "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
           git -C rexglue-sdk/thirdparty/sdl3 apply --check "$GITHUB_WORKSPACE/sdl3-gtav.patch"
           git -C rexglue-sdk/thirdparty/sdl3 apply "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply --check "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
           git -C thirdparty/XenosRecomp apply --check "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
