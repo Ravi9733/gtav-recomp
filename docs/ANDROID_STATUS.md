@@ -171,3 +171,38 @@ Turnip selection/status control. Validate ABI, Android loader compatibility, and
 build before shipping; no driver archive is assumed compatible merely because it is arm64.
 
 This audit is source-only. It does not alter game data, saves, the Android pack, or the APK.
+
+
+## Turnip loader feasibility check (2026-11-06, follow-up)
+
+A supported Android injection library has now been identified: `bylaws/libadrenotools`
+(BSD-2-Clause). Its public API is `adrenotools_open_libvulkan(...,
+ADRENOTOOLS_DRIVER_CUSTOM, ..., hookLibDir, customDriverDir, customDriverName, ...)`.
+The upstream documentation imposes important constraints:
+
+- Android 9+ and arm64 are supported; this project targets arm64-v8a and minSdk 30.
+- `hookLibDir` must be exactly Android `ApplicationInfo.nativeLibraryDir`.
+- The custom driver directory must be app-internal storage (not /sdcard or app external files).
+- The APK must extract native libraries (`useLegacyPackaging=true` / `extractNativeLibs=true`) so the hook libraries exist in `nativeLibraryDir`.
+- The custom driver must be staged under a safe internal path and its exact soname must be passed to the loader.
+- A successful non-null loader handle is not enough: enumerate physical devices and inspect driver properties before reporting Turnip active.
+
+The current APK manifest already sets `android:extractNativeLibs="true"`, and the APK packager places arm64 shared libraries under `lib/arm64-v8a`. Those are useful prerequisites, not proof that libadrenotools is integrated.
+
+### Renderer integration blocker
+
+`Renderer::Init` currently calls `plume::CreateVulkanInterface()` and then creates the device. Plume is built as a separate target from the external `thirdparty/plume` checkout and is linked into the game. Its Vulkan backend currently uses the Vulkan API entry points directly; the game does not pass an injected Vulkan loader handle into Plume.
+
+The AdrenoToolsTest reference implementation demonstrates opening a custom Vulkan loader and resolving Vulkan entry points with `dlsym`. That pattern cannot simply be added beside the current renderer: it would only probe a second Vulkan instance while Plume continued using the system loader. The real integration must route Plume's complete Vulkan dispatch through the injected loader (e.g. a loader/dispatch-table integration based on `vkGetInstanceProcAddr`) before creating the first Vulkan instance. It must also retain a system-loader fallback if the custom driver fails.
+
+### Safe implementation sequence
+
+1. Vendor or reproducibly fetch a pinned, license-preserving libadrenotools revision and its linker-namespace subdependency; build the arm64 hook libraries with the NDK.
+2. Package the hook libraries into the APK and confirm they are extracted to `nativeLibraryDir`.
+3. Add a driver-import screen/setup flow that copies a user-supplied compatible driver archive into app-internal storage, validates the archive contents/ABI/sonames, and never executes from shared storage.
+4. Add a single process-wide Vulkan loader abstraction. On Android, initialize it with libadrenotools before Plume creates an instance; on failure, explicitly fall back to the system Vulkan loader.
+5. Route every Plume Vulkan function through that loader's dispatch table; do not mix system-loader and injected-loader handles.
+6. Report the actual physical device and `VkPhysicalDeviceDriverProperties` (`driverName`, `driverInfo`, conformance version where available) in logs and UI. The UI must say Turnip only when those properties confirm the loaded custom driver.
+7. Test system fallback first, then a known-compatible Adreno 730 Turnip package on a Snapdragon 8 Gen 1/8+ Gen 1 device. Check startup, swapchain, shader/pipeline creation, device loss, resume-from-background, and long-session stability before shipping.
+
+No driver archive has been assumed compatible with Adreno 730. No custom driver is currently loaded by the game; this section records verified implementation requirements, not a completed integration.
