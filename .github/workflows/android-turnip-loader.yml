@@ -6,6 +6,10 @@ on:
     branches: [android-turnip-ios-ui]
     paths:
       - "tools/android/build_turnip_loader.sh"
+      - "tools/android/patch_plume_turnip.py"
+      - "gtav/src/native/turnip_loader.cpp"
+      - "gtav/src/native/menu.cpp"
+      - "tools/android/app/java/com/gtavrecomp/app/**"
       - ".github/workflows/android-turnip-loader.yml"
 
 permissions:
