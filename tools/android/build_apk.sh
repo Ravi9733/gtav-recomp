@@ -67,6 +67,19 @@ fi
 
 cp "${LIBS[@]}" "$SDK_LIB/librexruntime.so" "$SDK_LIB/librexgpu-xenos.so" \
    "$NDK_LIBCXX" stage/lib/arm64-v8a/
+
+# Optional rootless Turnip runtime. This packages the loader and hook libraries only;
+# the renderer must explicitly initialize adrenotools before Plume creates Vulkan.
+if [ "${TURNIP:-0}" = 1 ]; then
+  TURNIP_LIB="$ROOT/build/android-turnip/install/lib"
+  for lib in libadrenotools.so libmain_hook.so libfile_redirect_hook.so libgsl_alloc_hook.so libhook_impl.so; do
+    test -s "$TURNIP_LIB/$lib" || {
+      echo "Missing $TURNIP_LIB/$lib. Run tools/android/build_turnip_loader.sh first." >&2
+      exit 1
+    }
+    cp "$TURNIP_LIB/$lib" stage/lib/arm64-v8a/
+  done
+fi
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug stage/lib/arm64-v8a/*.so
 cp base.apk unaligned.apk
 (cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib && if [ -d assets ]; then zip -q -X -r ../unaligned.apk assets; fi)
