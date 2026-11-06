@@ -229,7 +229,7 @@ index 4fdc4bf..fe25401 100644
  #include <climits>
  #include <unordered_map>
  
-@@ -28,6 +37,25 @@
+@@ -28,6 +37,35 @@
  // - Fix resource pools.
  
  namespace plume {
