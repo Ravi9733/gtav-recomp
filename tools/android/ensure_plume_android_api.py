@@ -65,11 +65,9 @@ after(interface,
       "        virtual std::unique_ptr<RenderQueryPool> createQueryPool(uint32_t queryCount) = 0;\n",
       "        virtual std::unique_ptr<RenderQueryPool> createOcclusionQueryPool(uint32_t queryCount) { return nullptr; }\n",
       "createOcclusionQueryPool")
-after(interface, "        bool depthAttachmentReadOnly = false;\n",
-      "        bool colorDiscard = false;\n", "colorDiscard")
 
 checks = {
-    types: ["B5G6R5_UNORM", "INPUT_ATTACHMENT", "CONSTANT_BUFFER_DYNAMIC", "FRAGMENT = 1U << 3"],
+    types: ["B5G6R5_UNORM", "INPUT_ATTACHMENT", "CONSTANT_BUFFER_DYNAMIC", "FRAGMENT = 1U << 3", "colorDiscard"],
     builders: ["addConstantBufferDynamic", "addInputAttachment"],
     interface: ["setGraphicsDescriptorSetDynamic", "beginOcclusionQuery", "createOcclusionQueryPool", "colorDiscard"],
 }
