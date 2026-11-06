@@ -74,8 +74,15 @@ REXCVAR_DEFINE_BOOL(gtav_native_replay, false, "GTAV",
 REXCVAR_DEFINE_BOOL(gtav_native_fps, false, "GTAV", "Native renderer: on-screen frames-per-second counter");
 REXCVAR_DEFINE_BOOL(gtav_native_hidden, false, "GTAV",
                     "Native renderer: keep every game window hidden (unattended test runs)");
+#ifdef __ANDROID__
+// The Android target is Adreno (Snapdragon). Prefer its physical device name instead of the
+// desktop NVIDIA default; this selects a Vulkan physical device, not a Vulkan driver/ICD.
+REXCVAR_DEFINE_STRING(gtav_native_device, "Adreno", "GTAV",
+                      "Substring of the Vulkan physical-device name to prefer (does not select the driver)");
+#else
 REXCVAR_DEFINE_STRING(gtav_native_device, "NVIDIA", "GTAV",
                       "Substring of the Vulkan device name the native renderer prefers");
+#endif
 REXCVAR_DEFINE_STRING(gtav_native_spirv_dir, "", "GTAV",
                       "Directory of precompiled shaders (<vs|ps>_<hash>.spv); default derive/native/census1/spirv");
 
