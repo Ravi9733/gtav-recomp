@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
@@ -75,25 +76,19 @@ public class SetupActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("setup", MODE_PRIVATE);
-        if (!GameActivity.isReleaseLayout(this)) {
-            // Developer APK (game code inside libmain.so, files pushed with adb): no setup.
-            startGame();
-            return;
-        }
         addSetupShortcut();
-        // "Run setup again" (long-press the app icon) opens this screen even when the game is
-        // installed: to choose a newer pack (README: objects missing -> Build for Android again).
-        boolean again = getIntent() != null && getIntent().getBooleanExtra(EXTRA_SETUP, false);
-        if (!again && packCurrent() == null && nativeIsDataInstalled(home().getAbsolutePath())) {
-            startGame();
-            return;
-        }
         for (int i = 0; i < 4; i++) {
-            String s = prefs.getString("uri" + i, null);
-            if (s != null) picked[i] = Uri.parse(s);
+            String saved = prefs.getString("uri" + i, null);
+            if (saved != null) picked[i] = Uri.parse(saved);
         }
-        setContentView(buildUi());
-        refresh();
+        // Always show the launcher first. The previous version skipped it and immediately
+        // launched the game whenever files were installed, hiding all driver controls.
+        boolean again = getIntent() != null && getIntent().getBooleanExtra(EXTRA_SETUP, false);
+        if (again) showSetupScreen();
+        else {
+            setContentView(buildUi());
+            refreshHome();
+        }
     }
 
     private static final String EXTRA_SETUP = "com.gtavrecomp.app.SETUP";
@@ -177,7 +172,201 @@ public class SetupActivity extends Activity {
 
     // --- UI -------------------------------------------------------------------------------------
 
+    private TextView homeStatus;
+    private TextView homePack;
+    private TextView homeDriver;
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private android.graphics.drawable.GradientDrawable panelBackground(int fill, int stroke) {
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(fill);
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), stroke);
+        return bg;
+    }
+
+    private Button launcherButton(String caption, int fill, int textColor) {
+        Button b = new Button(this);
+        b.setText(caption);
+        b.setAllCaps(false);
+        b.setTextSize(15);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(textColor);
+        b.setPadding(dp(12), dp(10), dp(12), dp(10));
+        b.setBackground(panelBackground(fill, fill));
+        return b;
+    }
+
+    /** GTA V launcher inspired by LibertyRecompAndroid: branded hero, live status and clear actions. */
     private View buildUi() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        int pad = dp(22);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.HORIZONTAL);
+        root.setPadding(pad, pad, pad, pad);
+        root.setBackgroundColor(Color.rgb(7, 10, 16));
+
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setGravity(Gravity.CENTER);
+        hero.setPadding(dp(24), dp(18), dp(24), dp(18));
+        hero.setBackground(panelBackground(Color.rgb(17, 23, 33), Color.rgb(47, 59, 76)));
+
+        TextView eyebrow = text("ROCKSTAR GAMES  •  ANDROID RECOMP", 12);
+        eyebrow.setTextColor(Color.rgb(157, 170, 188));
+        eyebrow.setGravity(Gravity.CENTER);
+        hero.addView(eyebrow);
+
+        TextView grand = text("GRAND THEFT AUTO", 29);
+        grand.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        grand.setLetterSpacing(0.045f);
+        grand.setGravity(Gravity.CENTER);
+        grand.setShadowLayer(dp(8), 0, dp(2), Color.BLACK);
+        LinearLayout.LayoutParams logoTop = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        logoTop.topMargin = dp(18);
+        hero.addView(grand, logoTop);
+
+        LinearLayout logoLine = new LinearLayout(this);
+        logoLine.setGravity(Gravity.CENTER);
+        TextView five = text("FIVE", 17);
+        five.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        five.setTextColor(Color.rgb(16, 22, 17));
+        five.setGravity(Gravity.CENTER);
+        five.setPadding(dp(14), dp(3), dp(14), dp(3));
+        five.setBackground(panelBackground(Color.rgb(143, 190, 91), Color.rgb(183, 220, 137)));
+        TextView roman = text("V", 76);
+        roman.setTypeface(Typeface.create("serif", Typeface.BOLD));
+        roman.setTextColor(Color.rgb(151, 199, 101));
+        roman.setShadowLayer(dp(8), 0, dp(2), Color.BLACK);
+        roman.setPadding(dp(12), 0, dp(12), 0);
+        logoLine.addView(roman);
+        logoLine.addView(five);
+        hero.addView(logoLine);
+
+        TextView edition = text("ANDROID EDITION", 13);
+        edition.setTextColor(Color.rgb(176, 190, 205));
+        edition.setLetterSpacing(0.22f);
+        edition.setGravity(Gravity.CENTER);
+        hero.addView(edition);
+
+        homeStatus = text("Checking game installation…", 15);
+        homeStatus.setGravity(Gravity.CENTER);
+        homeStatus.setTextColor(Color.rgb(219, 226, 236));
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        statusParams.topMargin = dp(22);
+        hero.addView(homeStatus, statusParams);
+
+        Button play = launcherButton("▶   PLAY GTA V", Color.rgb(151, 194, 95), Color.rgb(12, 18, 12));
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(58));
+        playParams.topMargin = dp(20);
+        hero.addView(play, playParams);
+        play.setOnClickListener(v -> {
+            boolean installed = false;
+            try { installed = nativeIsDataInstalled(home().getAbsolutePath()) && packCurrent() == null; }
+            catch (Exception ignored) { }
+            if (installed) startGame();
+            else showSetupScreen();
+        });
+
+        TextView footer = text("XBOX 360 RECOMPILATION  •  VULKAN", 11);
+        footer.setTextColor(Color.rgb(120, 137, 157));
+        footer.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams footParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        footParams.topMargin = dp(16);
+        hero.addView(footer, footParams);
+
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setPadding(dp(18), 0, 0, 0);
+
+        LinearLayout statusCard = new LinearLayout(this);
+        statusCard.setOrientation(LinearLayout.VERTICAL);
+        statusCard.setPadding(dp(18), dp(14), dp(18), dp(14));
+        statusCard.setBackground(panelBackground(Color.rgb(17, 23, 33), Color.rgb(47, 59, 76)));
+        TextView statusTitle = text("GAME STATUS", 13);
+        statusTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        statusTitle.setTextColor(Color.rgb(151, 199, 101));
+        statusCard.addView(statusTitle);
+        homePack = text("Game pack: checking…", 14);
+        homePack.setTextColor(Color.rgb(220, 227, 237));
+        statusCard.addView(homePack);
+        side.addView(statusCard, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout gpuCard = new LinearLayout(this);
+        gpuCard.setOrientation(LinearLayout.VERTICAL);
+        gpuCard.setPadding(dp(18), dp(14), dp(18), dp(14));
+        gpuCard.setBackground(panelBackground(Color.rgb(17, 23, 33), Color.rgb(47, 59, 76)));
+        LinearLayout.LayoutParams gpuParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        gpuParams.topMargin = dp(14);
+        TextView gpuTitle = text("VULKAN  /  GPU DRIVER", 13);
+        gpuTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        gpuTitle.setTextColor(Color.rgb(151, 199, 101));
+        gpuCard.addView(gpuTitle);
+        homeDriver = text("Turnip driver settings", 14);
+        homeDriver.setTextColor(Color.rgb(220, 227, 237));
+        gpuCard.addView(homeDriver);
+        Button gpu = launcherButton("GPU DRIVER SETTINGS", Color.rgb(37, 49, 65), Color.WHITE);
+        LinearLayout.LayoutParams gpuButtonParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        gpuButtonParams.topMargin = dp(10);
+        gpuCard.addView(gpu, gpuButtonParams);
+        gpu.setOnClickListener(v -> startActivity(new Intent(this, DriverSettingsActivity.class)));
+        side.addView(gpuCard, gpuParams);
+
+        Button setup = launcherButton("GAME SETUP  /  MANAGE FILES", Color.rgb(37, 49, 65), Color.WHITE);
+        LinearLayout.LayoutParams setupParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
+        setupParams.topMargin = dp(14);
+        side.addView(setup, setupParams);
+        setup.setOnClickListener(v -> showSetupScreen());
+
+        TextView note = text("Your game files and saves stay in the existing app data folder. Opening this launcher will not reinstall or erase them.", 12);
+        note.setTextColor(Color.rgb(137, 151, 169));
+        note.setPadding(dp(4), dp(12), dp(4), 0);
+        side.addView(note);
+
+        root.addView(hero, new LinearLayout.LayoutParams(0,
+            LinearLayout.LayoutParams.MATCH_PARENT, 1.15f));
+        root.addView(side, new LinearLayout.LayoutParams(0,
+            LinearLayout.LayoutParams.MATCH_PARENT, 0.85f));
+        return root;
+    }
+
+    private void refreshHome() {
+        boolean data = false;
+        try { data = nativeIsDataInstalled(home().getAbsolutePath()); } catch (Exception ignored) { }
+        String pack = packCurrent();
+        boolean ready = data && pack == null;
+        if (homeStatus != null) homeStatus.setText(ready ? "GAME READY  •  PRESS PLAY" :
+            "SETUP REQUIRED  •  OPEN GAME SETUP");
+        if (homePack != null) homePack.setText(ready ? "Game files and Android pack: installed" :
+            "Game files / Android pack: setup required");
+        if (homeDriver != null) {
+            boolean turnip = new File(getFilesDir(), "turnip/libvulkan_freedreno.so").isFile();
+            boolean enabled = getSharedPreferences("gpu", MODE_PRIVATE).getBoolean("turnip_enabled", false);
+            homeDriver.setText(turnip ? (enabled ? "Turnip imported  •  enabled" : "Turnip imported  •  disabled")
+                : "System Vulkan  •  Turnip not imported");
+        }
+    }
+
+    private void showSetupScreen() {
+        homeStatus = null;
+        homePack = null;
+        homeDriver = null;
+        setContentView(buildSetupUi());
+        refresh();
+    }
+
+    private View buildSetupUi() {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
         LinearLayout box = new LinearLayout(this);
