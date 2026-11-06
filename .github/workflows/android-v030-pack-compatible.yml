@@ -107,10 +107,10 @@ jobs:
           types = Path("thirdparty/plume/plume_render_interface_types.h")
           t = types.read_text()
           type_edits = [
-              ("        BC7_UNORM_SRGB,\\n        MAX", "        BC7_UNORM_SRGB,\\n        B5G6R5_UNORM,\\n        MAX"),
-              ("            COPY = 1U << 2,\\n", "            COPY = 1U << 2,\\n            FRAGMENT = 1U << 3,\\n"),
-              ("        ACCELERATION_STRUCTURE\\n", "        ACCELERATION_STRUCTURE,\\n        INPUT_ATTACHMENT,\\n        CONSTANT_BUFFER_DYNAMIC\\n"),
-              ("        bool depthAttachmentReadOnly = false;\\n", "        bool depthAttachmentReadOnly = false;\\n        bool colorDiscard = false;\\n")
+              ("        BC7_UNORM_SRGB,\n        MAX", "        BC7_UNORM_SRGB,\n        B5G6R5_UNORM,\n        MAX"),
+              ("            COPY = 1U << 2,\n", "            COPY = 1U << 2,\n            FRAGMENT = 1U << 3,\n"),
+              ("        ACCELERATION_STRUCTURE\n", "        ACCELERATION_STRUCTURE,\n        INPUT_ATTACHMENT,\n        CONSTANT_BUFFER_DYNAMIC\n"),
+              ("        bool depthAttachmentReadOnly = false;\n", "        bool depthAttachmentReadOnly = false;\n        bool colorDiscard = false;\n")
           ]
           for before, after in type_edits:
               if after.strip() in t:
@@ -123,12 +123,12 @@ jobs:
           builders = Path("thirdparty/plume/plume_render_interface_builders.h")
           b = builders.read_text()
           builder_edits = [
-              ("        uint32_t addConstantBuffer(uint32_t binding, uint32_t count = 1) {\\n",
-               "        uint32_t addConstantBuffer(uint32_t binding, uint32_t count = 1) {\\n"),
+              ("        uint32_t addConstantBuffer(uint32_t binding, uint32_t count = 1) {\n",
+               "        uint32_t addConstantBuffer(uint32_t binding, uint32_t count = 1) {\n"),
               ("        uint32_t addFormattedBuffer(uint32_t binding, uint32_t count = 1) {",
-               "        uint32_t addConstantBufferDynamic(uint32_t binding, uint32_t count = 1) {\\n            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::CONSTANT_BUFFER_DYNAMIC, binding, count, nullptr));\\n        }\\n\\n        uint32_t addFormattedBuffer(uint32_t binding, uint32_t count = 1) {"),
+               "        uint32_t addConstantBufferDynamic(uint32_t binding, uint32_t count = 1) {\n            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::CONSTANT_BUFFER_DYNAMIC, binding, count, nullptr));\n        }\n\n        uint32_t addFormattedBuffer(uint32_t binding, uint32_t count = 1) {"),
               ("        uint32_t addSampler(uint32_t binding, uint32_t count = 1) {",
-               "        uint32_t addInputAttachment(uint32_t binding, uint32_t count = 1) {\\n            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::INPUT_ATTACHMENT, binding, count, nullptr));\\n        }\\n\\n        uint32_t addSampler(uint32_t binding, uint32_t count = 1) {")
+               "        uint32_t addInputAttachment(uint32_t binding, uint32_t count = 1) {\n            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::INPUT_ATTACHMENT, binding, count, nullptr));\n        }\n\n        uint32_t addSampler(uint32_t binding, uint32_t count = 1) {")
           ]
           for before, after in builder_edits[1:]:
               if after.strip() in b:
