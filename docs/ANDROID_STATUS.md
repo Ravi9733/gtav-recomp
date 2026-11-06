@@ -278,3 +278,8 @@ The Plume patch step now also queries `VkPhysicalDeviceDriverProperties` where t
 ### CI result: loader runtime
 
 GitHub Actions run `42186691984` completed successfully on 2026-11-06. It compiled the Android app Java sources (including the Turnip settings/import screen), syntax-checked the native Turnip bridge, built all five pinned libadrenotools arm64-v8a libraries with NDK r29/API 30, verified their ELF machine type, and uploaded artifact `adrenotools-turnip-loader-arm64-api30`. This is a loader-runtime build artifact, not a complete GTA V APK and not a device test. A follow-up run adds the Plume source-patch test and Vulkan driver-identity changes.
+
+
+### CI result: Plume bridge and driver identity checks
+
+GitHub Actions run `42186975959` also completed successfully. In addition to the ARM64 loader build and Java/native syntax checks, it cloned upstream Plume, applied the idempotent Volk injection and driver-properties patch, and verified that both the GIPA bridge and driver-report callback were present. The five-library ARM64 loader artifact was uploaded again as `adrenotools-turnip-loader-arm64-api30`. This validates the patching step against upstream Plume source; it is not yet a full Plume/GTAV native link or a phone runtime test.
