@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -38,16 +39,33 @@ public final class DriverSettingsActivity extends Activity {
         prefs = getSharedPreferences("gpu", MODE_PRIVATE);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(28, 28, 28, 28);
-        root.setBackgroundColor(Color.rgb(12, 17, 27));
-        TextView title = text("GPU DRIVER SETTINGS", 23);
+        root.setPadding(28, 24, 28, 24);
+        root.setBackgroundColor(Color.rgb(7, 10, 16));
+        TextView brand = text("GRAND THEFT AUTO  V", 25);
+        brand.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        brand.setTextColor(Color.rgb(151, 199, 101));
+        root.addView(brand);
+        TextView title = text("VULKAN  /  GPU DRIVER", 18);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         root.addView(title);
-        root.addView(text("Optional Turnip driver for Adreno. Import a trusted ARM64 Turnip ZIP. "
-            + "The driver is stored in this app's private files; game data and saves are not changed.", 15));
+        root.addView(text("Choose the graphics driver used when GTA V starts. Turnip is optional and is only enabled after a valid ARM64 driver has been imported.", 14));
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(18, 16, 18, 16);
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.rgb(17, 23, 33));
+        cardBg.setCornerRadius(22);
+        cardBg.setStroke(1, Color.rgb(47, 59, 76));
+        card.setBackground(cardBg);
         status = text("", 14);
-        root.addView(status);
+        card.addView(status);
+        root.addView(card);
         importButton = new Button(this);
-        importButton.setText("Import Turnip driver ZIP");
+        importButton.setAllCaps(false);
+        importButton.setTextColor(Color.rgb(12, 18, 12));
+        importButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        importButton.setText("＋  Import Turnip driver ZIP");
+        importButton.setBackground(round(Color.rgb(151, 199, 101)));
         importButton.setOnClickListener(v -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -58,6 +76,8 @@ public final class DriverSettingsActivity extends Activity {
         enabled = new CheckBox(this);
         enabled.setText("Use Turnip on next game launch");
         enabled.setTextColor(Color.WHITE);
+        enabled.setTextSize(15);
+        enabled.setPadding(0, 14, 0, 14);
         enabled.setButtonTintList(android.content.res.ColorStateList.valueOf(Color.rgb(80, 160, 255)));
         enabled.setOnCheckedChangeListener((v, checked) -> {
             boolean ready = new File(getFilesDir(), "turnip/libvulkan_freedreno.so").isFile();
@@ -72,13 +92,23 @@ public final class DriverSettingsActivity extends Activity {
         });
         root.addView(enabled);
         Button back = new Button(this);
-        back.setText("Back");
+        back.setText("Back to GTA V");
+        back.setAllCaps(false);
+        back.setTextColor(Color.WHITE);
+        back.setBackground(round(Color.rgb(37, 49, 65)));
         back.setOnClickListener(v -> finish());
         root.addView(back);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         setContentView(scroll);
         refresh();
+    }
+
+    private android.graphics.drawable.GradientDrawable round(int color) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(18);
+        return d;
     }
 
     private TextView text(String value, int size) {
