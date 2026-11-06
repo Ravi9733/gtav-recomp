@@ -275,10 +275,10 @@ if(GTAV_NATIVE_VALIDATION)
 endif()
 target_link_libraries(gtav PRIVATE plume)
 if(ANDROID)
-    # The game bridge and Plume Vulkan backend share these renderer counters with the
-    # separately built libgtav_game.so. Force the Plume archive member into libgtav_fast.so:
-    # Android's shared-library linker otherwise permits unresolved references and the app
-    # crashes later at dlopen(libgtav_game.so).
+    # Export renderer counters consumed by the separately dlopen'd libgtav_game.so.
+    # They are defined in a direct host object (not the Plume static archive) so LLD
+    # cannot suppress them through archive export handling.
+    target_sources(gtav PRIVATE ../tools/android/plume_export.cpp)
     target_link_options(gtav PRIVATE
         "-Wl,-u,_ZN5plume18g_statRenderPassesE"
         "-Wl,-u,_ZN5plume16g_statLoadClearsE"

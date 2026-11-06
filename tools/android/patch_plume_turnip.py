@@ -12,6 +12,27 @@ if not source.is_file():
 
 text = source.read_text()
 
+# Move the two cross-DSO counters into the host target. Defining them in libplume.a
+# allowed the Android linker to omit them from libgtav_fast.so's dynamic symbol table.
+render_passes = """#if defined(__GNUC__)
+    __attribute__((visibility("default"))) uint32_t g_statRenderPasses = 0;
+#else
+    uint32_t g_statRenderPasses = 0;
+#endif"""
+load_clears = """#if defined(__GNUC__)
+    __attribute__((visibility("default"))) uint32_t g_statLoadClears = 0;
+#else
+    uint32_t g_statLoadClears = 0;
+#endif"""
+if render_passes in text:
+    text = text.replace(render_passes, "    extern uint32_t g_statRenderPasses;", 1)
+elif "extern uint32_t g_statRenderPasses;" not in text:
+    raise SystemExit("Could not find Plume g_statRenderPasses definition; refusing an unsafe patch.")
+if load_clears in text:
+    text = text.replace(load_clears, "    extern uint32_t g_statLoadClears;", 1)
+elif "extern uint32_t g_statLoadClears;" not in text:
+    raise SystemExit("Could not find Plume g_statLoadClears definition; refusing an unsafe patch.")
+
 # Inject the app-owned libadrenotools GIPA before Plume initializes Volk. If Turnip is not
 # requested or the custom loader fails, Volk keeps its normal Android system-loader behavior.
 volk_marker = "// GTAV_ANDROID_TURNIP_VOLK_BRIDGE"
