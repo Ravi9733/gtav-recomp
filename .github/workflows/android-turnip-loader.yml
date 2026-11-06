@@ -47,13 +47,17 @@ jobs:
             -classpath "$ANDROID_SDK_ROOT/platforms/android-36/android.jar" \
             -d build/android-java-classes "${JAVA_SOURCES[@]}"
 
-      - name: Check native Turnip bridge syntax
+      - name: Check native Turnip bridge and Plume patch
         run: |
           CXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
           SYSROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           "$CXX" --target=aarch64-linux-android30 --sysroot="$SYSROOT" -std=c++23 \
             -fsyntax-only gtav/src/native/turnip_loader.cpp
           python3 -m py_compile tools/android/patch_plume_turnip.py
+          git clone --depth 1 https://github.com/renderbag/plume.git build/plume-patch-test
+          python3 tools/android/patch_plume_turnip.py build/plume-patch-test/plume_vulkan.cpp
+          grep -q "GTAV_ANDROID_TURNIP_VOLK_BRIDGE" build/plume-patch-test/plume_vulkan.cpp
+          grep -q "GTAV_ANDROID_DRIVER_PROPERTIES" build/plume-patch-test/plume_vulkan.cpp
 
       - name: Build pinned libadrenotools for arm64-v8a
         env:
