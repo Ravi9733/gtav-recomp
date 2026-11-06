@@ -12,37 +12,8 @@ if not source.is_file():
 
 text = source.read_text()
 
-# Move the two cross-DSO counters into the host target. The Android source bundle's
-# Plume patch may format these definitions differently across upstream snapshots, so locate
-# the initialized definition line and remove its surrounding conditional block if present.
-def move_counter(name: str) -> None:
-    global text
-    marker = f"extern uint32_t {name};"
-    if marker in text:
-        return
-    lines = text.splitlines(keepends=True)
-    matches = [i for i, line in enumerate(lines)
-               if name in line and "=" in line and "0" in line and ";" in line]
-    if len(matches) != 1:
-        raise SystemExit(f"Expected one initialized Plume {name} definition, found {len(matches)}; refusing an unsafe patch.")
-    i = matches[0]
-    begin = i
-    finish = i + 1
-    # The known patched form is a small #if/#else/#endif visibility block. Remove the
-    # complete block rather than leaving unmatched preprocessor directives behind.
-    for j in range(i - 1, max(-1, i - 8), -1):
-        if lines[j].lstrip().startswith("#if"):
-            begin = j
-            break
-    for j in range(i + 1, min(len(lines), i + 8)):
-        if lines[j].lstrip().startswith("#endif"):
-            finish = j + 1
-            break
-    lines[begin:finish] = [f"    extern uint32_t {name};\\n"]
-    text = "".join(lines)
-
-move_counter("g_statRenderPasses")
-move_counter("g_statLoadClears")
+# Renderer counters are declared extern by plume-gtav.patch and defined in
+# tools/android/plume_export.cpp, which is compiled directly into libgtav_fast.so.
 
 # Inject the app-owned libadrenotools GIPA before Plume initializes Volk. If Turnip is not
 # requested or the custom loader fails, Volk keeps its normal Android system-loader behavior.
