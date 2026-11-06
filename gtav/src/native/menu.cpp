@@ -181,8 +181,8 @@ ImGuiKey ToImGui(Key key) {
 }
 
 void Build(uint32_t fps, double frame_ms) {
-#if defined(__APPLE__) && TARGET_OS_IPHONE
-  // Centred: the screen's sides are under the rounded corners and the notch.
+#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+  // Centre the touch-first control centre on phones; keep it clear of rounded corners and notches.
   const ImVec2 display = ImGui::GetIO().DisplaySize;
   ImGui::SetNextWindowPos(ImVec2(display.x * 0.5f, display.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 #else
