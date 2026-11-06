@@ -82,6 +82,9 @@ jobs:
           git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
           git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
+          # The source archive's Plume headers can differ from the patch's git index state.
+          # Apply and verify the public API additions directly in the include tree used by Clang.
+          python3 tools/android/ensure_plume_android_api.py
 
       - name: Build ReXGlue Android ARM64 SDK
         env:
