@@ -247,3 +247,24 @@ Until that hook and driver-property verification land, the UI must not claim Tur
 
 The iOS-style menu work remains on the same branch. APK packaging remains opt-in for the new
 loader libraries, and this change does not touch the installed game pack, save files, or user data.
+
+
+## Turnip integration implementation pass (2026-11-06)
+
+The earlier feasibility audit above described the pre-integration state. The branch now contains a source-level Android loader path:
+
+- `gtav/src/native/turnip_loader.cpp` dynamically opens the packaged `libadrenotools.so`, calls `adrenotools_open_libvulkan` with the custom-driver feature, and returns the injected loader's `vkGetInstanceProcAddr`. It keeps both loader handles alive for the process.
+- `tools/android/patch_plume_turnip.py` is run by the Android CMake configure before Plume is added. It makes Plume call `volkInitializeCustom` with that GIPA when Turnip is requested; otherwise it retains the normal `volkInitialize` system-loader path. It refuses to patch if the expected single initialization site is not present.
+- `GameActivity` passes the app-private driver directory, APK `nativeLibraryDir`, and selected driver soname to native code before SDL loads the game library.
+- `DriverSettingsActivity` is reachable from the launcher app shortcut (long-press the icon). It imports ARM64 `.so` libraries from a user-selected ZIP into `getFilesDir()/turnip/`, validates ELF class/endianness/AArch64 machine type, filters non-ARM64 ABI paths, limits extracted size, and defaults Turnip to OFF.
+- The native Control Center distinguishes a Turnip request from proof of the active driver. Startup loader messages use the Android log tag `GtavTurnip`.
+- `tools/android/build_turnip_loader.sh` is now usable in CI without the developer's local `~/android-tools/env.sh`; a workflow builds the pinned AdrenoTools libraries and checks Java/native syntax plus ARM64 ELF output.
+
+Build path on a configured Android build host:
+
+```sh
+tools/android/build_turnip_loader.sh
+TURNIP=1 tools/android/build_apk.sh
+```
+
+This is implementation source, not a verified release. The workflow/device build has not yet been confirmed here. The remaining critical verification is to build the APK, test system-Vulkan fallback, test a compatible Adreno 730 Turnip archive, and query `VkPhysicalDeviceDriverProperties` (driverName/driverInfo) after Plume enumerates the physical device. Do not label Turnip active until that property check succeeds. The new code does not modify the installed game pack, game data, or saves.
