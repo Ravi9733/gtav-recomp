@@ -116,8 +116,39 @@ void EnsureContext(uint32_t h) {
   io.Fonts->AddFontDefault(&font);
   ImGui::StyleColorsDark();
   ImGuiStyle& style = ImGui::GetStyle();
-  style.WindowRounding = 6.0f;
-  style.FrameRounding = 4.0f;
+  // A compact, touch-first control centre: soft panels, clear hierarchy and a restrained
+  // blue accent. Keep this in the existing renderer overlay so no second graphics API is needed.
+  style.WindowRounding = 16.0f;
+  style.ChildRounding = 12.0f;
+  style.FrameRounding = 9.0f;
+  style.PopupRounding = 10.0f;
+  style.ScrollbarRounding = 10.0f;
+  style.GrabRounding = 9.0f;
+  style.WindowBorderSize = 0.0f;
+  style.FrameBorderSize = 0.0f;
+  style.WindowPadding = ImVec2(22.0f, 20.0f);
+  style.FramePadding = ImVec2(14.0f, 10.0f);
+  style.ItemSpacing = ImVec2(12.0f, 11.0f);
+  style.ItemInnerSpacing = ImVec2(9.0f, 7.0f);
+  ImVec4* colors = style.Colors;
+  colors[ImGuiCol_WindowBg] = ImVec4(0.035f, 0.047f, 0.071f, 0.97f);
+  colors[ImGuiCol_ChildBg] = ImVec4(0.060f, 0.075f, 0.105f, 1.00f);
+  colors[ImGuiCol_PopupBg] = ImVec4(0.055f, 0.067f, 0.092f, 0.98f);
+  colors[ImGuiCol_Border] = ImVec4(0.15f, 0.19f, 0.26f, 0.65f);
+  colors[ImGuiCol_FrameBg] = ImVec4(0.105f, 0.13f, 0.18f, 1.00f);
+  colors[ImGuiCol_FrameBgHovered] = ImVec4(0.15f, 0.22f, 0.32f, 1.00f);
+  colors[ImGuiCol_FrameBgActive] = ImVec4(0.17f, 0.27f, 0.40f, 1.00f);
+  colors[ImGuiCol_TitleBg] = ImVec4(0.035f, 0.047f, 0.071f, 1.00f);
+  colors[ImGuiCol_TitleBgActive] = ImVec4(0.035f, 0.047f, 0.071f, 1.00f);
+  colors[ImGuiCol_Button] = ImVec4(0.12f, 0.32f, 0.58f, 1.00f);
+  colors[ImGuiCol_ButtonHovered] = ImVec4(0.16f, 0.42f, 0.72f, 1.00f);
+  colors[ImGuiCol_ButtonActive] = ImVec4(0.10f, 0.27f, 0.49f, 1.00f);
+  colors[ImGuiCol_CheckMark] = ImVec4(0.35f, 0.68f, 1.00f, 1.00f);
+  colors[ImGuiCol_SliderGrab] = ImVec4(0.25f, 0.55f, 0.90f, 1.00f);
+  colors[ImGuiCol_SliderGrabActive] = ImVec4(0.40f, 0.72f, 1.00f, 1.00f);
+  colors[ImGuiCol_Header] = ImVec4(0.12f, 0.27f, 0.43f, 0.75f);
+  colors[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.36f, 0.56f, 0.85f);
+  colors[ImGuiCol_HeaderActive] = ImVec4(0.13f, 0.31f, 0.50f, 1.00f);
   style.ScaleAllSizes(g_scale);
   if (previous) ImGui::SetCurrentContext(previous);
 }
@@ -149,16 +180,16 @@ void Build(uint32_t fps, double frame_ms) {
 #else
   ImGui::SetNextWindowPos(ImVec2(40.0f * g_scale, 40.0f * g_scale), ImGuiCond_FirstUseEver);
 #endif
-  ImGui::SetNextWindowSize(ImVec2(520.0f * g_scale, 0.0f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(std::min(620.0f * g_scale, ImGui::GetIO().DisplaySize.x - 32.0f * g_scale), 0.0f), ImGuiCond_FirstUseEver);
   bool open = true;
-  if (!ImGui::Begin("Settings (Esc / B to close)", &open, ImGuiWindowFlags_NoCollapse)) {
+  if (!ImGui::Begin("GTA V  |  CONTROL CENTER", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
     ImGui::End();
     return;
   }
   ImGui::Text("%u fps  (%.1f ms per frame)", fps, frame_ms);
   ImGui::Separator();
 
-  ImGui::TextUnformatted("Preset");
+  ImGui::TextUnformatted("PERFORMANCE PROFILE");
   if (ImGui::Button("Best image")) ApplyPreset(true);
   ImGui::SameLine();
   if (ImGui::Button("Max performance")) ApplyPreset(false);
@@ -186,7 +217,7 @@ void Build(uint32_t fps, double frame_ms) {
   check("VSync", "gtav_native_vsync", "Wait for the display refresh: no tearing, fps capped at the refresh rate.");
   check("FPS counter", "gtav_native_fps", "Frames per second in the top-left corner.");
   ImGui::Separator();
-  ImGui::TextUnformatted("Accuracy");
+  ImGui::TextUnformatted("RENDER QUALITY");
   check("Per-pixel sun shadows", "gtav_native_tile_penumbra_all",
         "On: every screen tile computes sun shadows per pixel (no blocky shadows or car reflections).\n"
         "Off: the game's own per-tile shortcut, which goes blocky on this renderer (gray 16x16 blocks).");
@@ -204,7 +235,7 @@ void Build(uint32_t fps, double frame_ms) {
                         "Off: the tested setting; with On, watch foliage and distant meshes while driving.");
   }
   ImGui::Separator();
-  ImGui::TextUnformatted("Textures");
+  ImGui::TextUnformatted("TEXTURE STREAMING");
   check("Exact texture checks", "gtav_native_exact_cache",
         "On: every texture is fully re-checked each frame: no stale gray blocks, but more CPU time.\n"
         "Off: large textures are spot-checked between full checks (faster).");
@@ -220,7 +251,7 @@ void Build(uint32_t fps, double frame_ms) {
   }
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
-  ImGui::TextDisabled("Controller: RB + Back opens/closes this menu; D-pad + A to change, B to close.");
+  ImGui::TextDisabled("CONTROLS  ·  RB + Back opens menu  ·  D-pad + A selects  ·  B closes");
   if (changed) SaveSettings();
   ImGui::End();
   if (!open) g_open = false;
