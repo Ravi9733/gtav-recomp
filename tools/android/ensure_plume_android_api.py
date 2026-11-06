@@ -46,7 +46,6 @@ after(builders,
       "            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::CONSTANT_BUFFER_DYNAMIC, binding, count, nullptr));\n"
       "        }\n", "addConstantBufferDynamic")
 after(builders,
-      "        uint32_t addReadWriteTexture(uint32_t binding, uint32_t count = 1) {\n"
       "            return addRange(RenderDescriptorRange(RenderDescriptorRangeType::READ_WRITE_TEXTURE, binding, count, nullptr));\n"
       "        }\n",
       "\n        uint32_t addInputAttachment(uint32_t binding, uint32_t count = 1) {\n"
