@@ -91,6 +91,7 @@ class DeferredCommandList final : public plume::RenderCommandList {
   void writeTimestamp(const plume::RenderQueryPool* queryPool, uint32_t queryIndex) override;
   void beginOcclusionQuery(const plume::RenderQueryPool* queryPool, uint32_t queryIndex) override;
   void endOcclusionQuery(const plume::RenderQueryPool* queryPool, uint32_t queryIndex) override;
+  void setFragmentShadingRate(uint32_t width, uint32_t height) override;
 
  private:
   enum class Op : uint16_t;

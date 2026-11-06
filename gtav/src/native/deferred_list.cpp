@@ -47,6 +47,7 @@ enum class DeferredCommandList::Op : uint16_t {
   WriteTimestamp,
   BeginOcclusionQuery,
   EndOcclusionQuery,
+  SetFragmentShadingRate,
 };
 
 namespace {
@@ -431,6 +432,11 @@ void DeferredCommandList::Replay(const Header* h) {
       t->endOcclusionQuery(r.pool, r.first);
       break;
     }
+    case Op::SetFragmentShadingRate: {
+      const auto& r = rec((DrawRec*)nullptr);
+      t->setFragmentShadingRate(r.a, r.b);
+      break;
+    }
   }
 }
 
@@ -675,6 +681,12 @@ void DeferredCommandList::beginOcclusionQuery(const RenderQueryPool* queryPool, 
 void DeferredCommandList::endOcclusionQuery(const RenderQueryPool* queryPool, uint32_t queryIndex) {
   uint8_t* p = Append(Op::EndOcclusionQuery, sizeof(QueryRec));
   Put(p, QueryRec{queryPool, queryIndex, 0});
+  Publish();
+}
+
+void DeferredCommandList::setFragmentShadingRate(uint32_t width, uint32_t height) {
+  uint8_t* p = Append(Op::SetFragmentShadingRate, sizeof(DrawRec));
+  Put(p, DrawRec{width, height, 0, 0, 0});
   Publish();
 }
 
