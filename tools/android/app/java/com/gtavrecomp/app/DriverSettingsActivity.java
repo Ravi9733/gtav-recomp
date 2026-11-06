@@ -140,6 +140,9 @@ public final class DriverSettingsActivity extends Activity {
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
                 String path = entry.getName().replace('\\', '/');
+                String lowerPath = path.toLowerCase(java.util.Locale.ROOT);
+                if (lowerPath.contains("armeabi") || lowerPath.contains("armv7") ||
+                    lowerPath.contains("x86") || lowerPath.contains("mips")) continue;
                 String name = path.substring(path.lastIndexOf('/') + 1);
                 if (!name.endsWith(".so")) continue;
                 if (name.isEmpty() || name.equals(".") || name.equals("..") || !names.add(name))
@@ -156,11 +159,10 @@ public final class DriverSettingsActivity extends Activity {
                     }
                     stream.getFD().sync();
                 }
+                if (!isArm64Elf(out))
+                    return fail(stage, name + " is not a valid 64-bit ARM ELF library.");
                 files++;
-                if (name.equals("libvulkan_freedreno.so")) {
-                    foundDriver = isArm64Elf(out);
-                    if (!foundDriver) return fail(stage, "libvulkan_freedreno.so is not a valid 64-bit ARM ELF library.");
-                }
+                if (name.equals("libvulkan_freedreno.so")) foundDriver = true;
             }
         } catch (Exception e) {
             return fail(stage, "Could not import Turnip ZIP: " + e);
