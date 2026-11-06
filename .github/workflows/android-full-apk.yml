@@ -69,14 +69,14 @@ jobs:
 
       - name: Apply maintained Android compatibility patches
         run: |
+          git -C rexglue-sdk apply --check "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
           git -C rexglue-sdk apply "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk/thirdparty/sdl3 apply --check "$GITHUB_WORKSPACE/sdl3-gtav.patch"
           git -C rexglue-sdk/thirdparty/sdl3 apply "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C thirdparty/XenosRecomp apply --check "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
+          git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
           git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
-          git -C rexglue-sdk diff --check
-          git -C rexglue-sdk/thirdparty/sdl3 diff --check
-          git -C thirdparty/XenosRecomp diff --check
-          git -C thirdparty/plume diff --check
 
       - name: Build ReXGlue Android ARM64 SDK
         env:
