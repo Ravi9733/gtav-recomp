@@ -1,0 +1,116 @@
+name: Android v0.3.0 pack-compatible APK
+
+on:
+  push:
+    branches: [android-v030-pack-compatible]
+    paths:
+      - ".github/workflows/android-v030-pack-compatible.yml"
+      - "gtav/**"
+      - "tools/android/**"
+      - "*.patch"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-pack-compatible-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout v0.3.0 compatibility branch
+        uses: actions/checkout@v4
+        with:
+          ref: android-v030-pack-compatible
+
+      - name: Install host and Android build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang lld ninja-build cmake git python3 python3-pip pkg-config curl xz-utils zip unzip rsync spirv-tools glslang-tools libvulkan-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev libwayland-dev libasound2-dev libpulse-dev libdbus-1-dev libudev-dev libibus-1.0-dev libdecor-0-dev libdrm-dev libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/android-tools"
+          cat > "$HOME/android-tools/env.sh" <<EOF
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/29.0.14206865"
+          EOF
+          keytool -genkeypair -keystore "$HOME/android-tools/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Fetch verified v0.3.0 source bundle and pinned SDK
+        run: |
+          URL="https://github.com/andrewnakas/gtav-recomp/releases/download/v0.3.0/gtav-recomp-src-v0.3.0.tar.xz"
+          curl -fL --retry 3 "$URL" -o /tmp/gtav-recomp-src.tar.xz
+          echo "e0cc7ff6f045b8ff7b0f225178e8c800a66d2c774acd4e623e899e379eb5028c  /tmp/gtav-recomp-src.tar.xz" | sha256sum -c -
+          mkdir -p /tmp/gtav-source
+          tar -xJf /tmp/gtav-recomp-src.tar.xz -C /tmp/gtav-source gtav-recomp-src/XenosRecomp gtav-recomp-src/plume
+          git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
+          git -C rexglue-sdk checkout f5337cdc947ff6d4c4196737e2c807a48f2a1fc2
+          git -C rexglue-sdk submodule update --init --recursive
+          mkdir -p thirdparty
+          mv /tmp/gtav-source/gtav-recomp-src/XenosRecomp thirdparty/XenosRecomp
+          mv /tmp/gtav-source/gtav-recomp-src/plume thirdparty/plume
+
+      - name: Apply Android compatibility patches
+        run: |
+          git -C rexglue-sdk apply --check "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk apply "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk/thirdparty/sdl3 apply --check "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C rexglue-sdk/thirdparty/sdl3 apply "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply --check "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
+          git -C thirdparty/XenosRecomp apply --check "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
+          git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
+          git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
+          git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
+
+      - name: Build pinned Android ARM64 SDK
+        env:
+          JOBS: "2"
+        run: bash tools/android/build_sdk.sh all
+
+      - name: Build v0.3.0 Android native libraries
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: "2"
+        run: |
+          SDK="$GITHUB_WORKSPACE/rexglue-sdk/out/install/android-arm64"
+          cmake -S gtav -B build/android-dll -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-30 \
+            -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH="$SDK" -DCMAKE_PREFIX_PATH="$SDK" \
+            -Drexglue_DIR="$SDK/lib/cmake/rexglue" -DSDL3_DIR="$SDK/lib/cmake/SDL3" \
+            -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=ON -DGTAV_GAME_DLL=ON
+          cmake --build build/android-dll --parallel 2
+          for lib in libmain.so libgtav_fast.so libgtav_setup.so; do test -s "build/android-dll/$lib"; done
+
+      - name: Package separate app and verify exact game-pack shell compatibility
+        env:
+          RELEASE: "1"
+        run: |
+          bash tools/android/build_apk.sh
+          APK="build/android/apk/gtav-recomp-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          mkdir -p apk-check android-apk-artifact
+          unzip -q "$APK" -d apk-check
+          ACTUAL="$(sha256sum apk-check/lib/arm64-v8a/libgtav_fast.so | cut -d' ' -f1)"
+          EXPECTED="840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90"
+          echo "Expected pack shell: $EXPECTED"
+          echo "Built APK shell:     $ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee android-apk-artifact/apk-badging.txt
+          grep -q "package: name='com.gtavrecomp.compat'" android-apk-artifact/apk-badging.txt
+          cp "$APK" android-apk-artifact/GTAV-Recomp-v0.3.0-Pack-Compatible.apk
+          sha256sum android-apk-artifact/GTAV-Recomp-v0.3.0-Pack-Compatible.apk > android-apk-artifact/SHA256SUMS.txt
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTAV-Recomp-v0.3.0-Pack-Compatible
+          path: android-apk-artifact/
+          if-no-files-found: error
+          retention-days: 90
