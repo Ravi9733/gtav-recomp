@@ -1,4 +1,4 @@
-name: Android v0.3.0 pack-compatible APK
+name: Android v0.3.0 pack-compatible APK (verified Plume header fix)
 
 on:
   push:
