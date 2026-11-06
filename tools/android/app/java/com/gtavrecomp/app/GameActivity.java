@@ -34,6 +34,24 @@ public class GameActivity extends SDLActivity {
         } catch (Exception e) {
             Log.w(TAG, "setenv: " + e);
         }
+        // Turnip is optional and defaults OFF. Its driver and hook libraries are resolved only
+        // from app-private/nativeLibraryDir paths, never from shared storage.
+        try {
+            File privateTurnip = new File(getFilesDir(), "turnip");
+            File turnipDriver = new File(privateTurnip, "libvulkan_freedreno.so");
+            boolean enabled = getSharedPreferences("gpu", MODE_PRIVATE)
+                .getBoolean("turnip_enabled", false) && turnipDriver.isFile();
+            android.system.Os.setenv("GTAV_TURNIP_ENABLED", enabled ? "1" : "0", true);
+            android.system.Os.setenv("GTAV_TURNIP_HOOK_LIB_DIR",
+                getApplicationInfo().nativeLibraryDir, true);
+            android.system.Os.setenv("GTAV_TURNIP_DRIVER_DIR",
+                privateTurnip.getAbsolutePath() + File.separator, true);
+            android.system.Os.setenv("GTAV_TURNIP_DRIVER_NAME",
+                "libvulkan_freedreno.so", true);
+            Log.i(TAG, "Turnip request: " + (enabled ? "enabled" : "system Vulkan fallback"));
+        } catch (Exception e) {
+            Log.w(TAG, "Turnip environment: " + e);
+        }
         // args.txt env: lines before super.onCreate loads libmain.so: its static initializers read
         // some variables (GTAV_NATIVE_FETCH_RESOLVE), and getArguments runs only after the load.
         File extra = new File(getExternalFilesDir(null), "args.txt");
