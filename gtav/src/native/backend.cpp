@@ -2463,7 +2463,7 @@ struct Backend::Impl {
     // Attachment use waits at the fragment stage only: the next pass's vertex work need not wait
     // for the previous pass to finish (MoltenVK turns barriers into Metal fences).
     const bool attachment = layout == RenderTextureLayout::COLOR_WRITE || layout == RenderTextureLayout::DEPTH_WRITE;
-    list->barriers(attachment && fragment_barriers ? RenderBarrierStage::FRAGMENT
+    list->barriers(attachment && fragment_barriers ? RenderBarrierStages::FRAGMENT
                                                    : RenderBarrierStage::GRAPHICS | RenderBarrierStage::COPY,
                    RenderTextureBarrier(t, layout));
     cur = layout;
