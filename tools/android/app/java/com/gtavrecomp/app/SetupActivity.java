@@ -144,10 +144,26 @@ public class SetupActivity extends Activity {
         if (!lib.exists() || !info.exists()) return "No game pack yet.";
         String shell = readShell(info);
         String mine = sha256(new File(getApplicationInfo().nativeLibraryDir, "libgtav_fast.so"));
-        if (shell == null || !shell.equals(mine))
-            return "The game pack was made for another version of this app: run Build for Android "
-                + "again with the download that has this APK.";
+        if (shell == null || (!shell.equals(mine) && !isKnownCompatibleLegacyShell(shell)))
+            return "The game pack was made for another version of this app: this pack is not "
+                + "compatible with the installed Android shell.";
         return null;
+    }
+
+    /**
+     * Legacy v0.3.0 Android pack shell. Its SHA-256 is pinned to the published
+     * pack-compatible APK. We compared that APK's exported dynamic symbols with the
+     * Turnip shell: every legacy export is still present; the Turnip shell adds only
+     * gtav_android_turnip_get_gipa and gtav_android_turnip_report_driver.
+     *
+     * Do not add hashes here unless the old shell's exported ABI has been checked
+     * against the current shell. This keeps the old game pack usable without silently
+     * accepting arbitrary mismatched packs.
+     */
+    private static boolean isKnownCompatibleLegacyShell(String shell) {
+        return "840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90"
+            .equalsIgnoreCase(shell);
+    }
     }
 
     private static String readShell(File info) {
