@@ -46,6 +46,7 @@ if report_decl_marker not in text:
         raise SystemExit("Could not locate namespace plume for driver-report callback.")
     text = text.replace(namespace, namespace + """
 #if defined(__ANDROID__)
+// GTAV_ANDROID_DRIVER_REPORT_DECL
 extern "C" void gtav_android_turnip_report_driver(const char*, const char*);
 #endif
 """, 1)
