@@ -288,6 +288,12 @@ void Build(uint32_t fps, double frame_ms) {
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("Higher values keep road and ground textures sharper at oblique viewing angles.");
   }
+#ifdef __ANDROID__
+  ImGui::Separator();
+  ImGui::TextUnformatted("VULKAN DEVICE");
+  ImGui::Text("Preferred GPU: %s", rex::cvar::GetFlagByName("gtav_native_device").c_str());
+  ImGui::TextDisabled("GPU selection is not driver selection. Android's Vulkan loader chooses the active driver; this APK does not bundle or load Turnip yet.");
+#endif
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
   ImGui::TextDisabled("CONTROLS  ·  RB + Back opens menu  ·  D-pad + A selects  ·  B closes");
