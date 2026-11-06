@@ -266,6 +266,12 @@ public class SetupActivity extends Activity {
             LinearLayout.LayoutParams.MATCH_PARENT, dp(58));
         playParams.topMargin = dp(20);
         hero.addView(play, playParams);
+        Button importPack = launcherButton("IMPORT GAME PACK", Color.rgb(37, 49, 65), Color.WHITE);
+        LinearLayout.LayoutParams importParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
+        importParams.topMargin = dp(10);
+        hero.addView(importPack, importParams);
+        importPack.setOnClickListener(v -> pickPackFromHome());
         play.setOnClickListener(v -> {
             boolean installed = false;
             try { installed = nativeIsDataInstalled(home().getAbsolutePath()) && packCurrent() == null; }
@@ -476,9 +482,40 @@ public class SetupActivity extends Activity {
         } catch (Exception e) {
             Log.w(TAG, "persist " + uri + ": " + e);
         }
+        if (request == 4) {
+            importPackFromHome(uri);
+            return;
+        }
         picked[request] = uri;
         prefs.edit().putString("uri" + request, uri.toString()).apply();
         refresh();
+    }
+
+    /** Opens the Android game-pack picker directly from the launcher, without entering Setup. */
+    private void pickPackFromHome() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("application/zip");
+        startActivityForResult(i, 4);
+    }
+
+    private void importPackFromHome(Uri uri) {
+        if (busy) return;
+        busy = true;
+        if (homeStatus != null) homeStatus.setText("IMPORTING GAME PACK…");
+        new Thread(() -> {
+            cancelled.set(false);
+            String error = importPack(uri);
+            runOnUiThread(() -> {
+                busy = false;
+                refreshHome();
+                if (error == null) {
+                    message("Game pack imported", "The Android game pack was imported. If game discs and Title Update are not installed yet, open GAME SETUP / MANAGE FILES to finish setup.");
+                } else {
+                    message("Import failed", error);
+                }
+            });
+        }, "gtav-pack-import").start();
     }
 
     // --- install --------------------------------------------------------------------------------
@@ -676,11 +713,12 @@ public class SetupActivity extends Activity {
     // --- called by libgtav_setup.so on the install thread (InstallUi) ----------------------------
 
     void onStage(String s) {
-        runOnUiThread(() -> status.setText(s));
+        runOnUiThread(() -> { if (status != null) status.setText(s); });
     }
 
     void onLog(String s) {
         runOnUiThread(() -> {
+            if (log == null) return;
             CharSequence old = log.getText();
             String all = old + (old.length() > 0 ? "\n" : "") + s;
             // The last lines only: the full log is data/logs/install.log.
