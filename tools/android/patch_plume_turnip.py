@@ -104,6 +104,42 @@ if driver_marker not in text:
 #endif"""
     text = text[:at] + text[at:].replace(needle, replacement, 1)
 
+# Keep the renderer's deferred command-list ABI in sync with the exact Plume checkout.
+# Some source bundles carry a RenderCommandList header older than the GTAV renderer expects;
+# the iOS compatibility patch may have applied to a sibling header in that layout. Repair the
+# actual header adjacent to plume_vulkan.cpp, but only add declarations that are absent.
+interface = source.with_name("plume_render_interface.h")
+if not interface.is_file():
+    raise SystemExit(f"Plume render interface not found: {interface}")
+header = interface.read_text()
+def ensure_after(anchor: str, declaration: str, label: str) -> None:
+    global header
+    if label in header:
+        return
+    if anchor not in header:
+        raise SystemExit(f"Cannot locate RenderCommandList insertion point for {label}")
+    header = header.replace(anchor, anchor + "\\n" + declaration, 1)
+
+ensure_after(
+    "virtual void setGraphicsDescriptorSet(RenderDescriptorSet *descriptorSet, uint32_t setIndex) = 0;",
+    "        // Deferred renderer: Vulkan dynamic uniform-buffer offsets.",
+    "setGraphicsDescriptorSetDynamic")
+if "setGraphicsDescriptorSetDynamic" not in header:
+    header = header.replace(
+        "        // Deferred renderer: Vulkan dynamic uniform-buffer offsets.",
+        "        virtual void setGraphicsDescriptorSetDynamic(RenderDescriptorSet *descriptorSet, uint32_t setIndex, const uint32_t *dynamicOffsets, uint32_t dynamicOffsetCount) {}",
+        1)
+ensure_after(
+    "virtual void writeTimestamp(const RenderQueryPool *queryPool, uint32_t queryIndex) = 0;",
+    "        // Deferred renderer optional Vulkan query/shading-rate operations.",
+    "beginOcclusionQuery")
+if "beginOcclusionQuery" not in header:
+    header = header.replace(
+        "        // Deferred renderer optional Vulkan query/shading-rate operations.",
+        "        virtual void beginOcclusionQuery(const RenderQueryPool *queryPool, uint32_t queryIndex) {}\\n        virtual void endOcclusionQuery(const RenderQueryPool *queryPool, uint32_t queryIndex) {}\\n        virtual void setFragmentShadingRate(uint32_t width, uint32_t height) {}",
+        1)
+interface.write_text(header)
+
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
     "volkInitializeCustom(turnipGipa);",
