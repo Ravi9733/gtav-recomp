@@ -48,6 +48,8 @@ constexpr const char* kSettings[] = {
     "gpu_skip_rendering_lag_ms",
     "gtav_native_exact_cache",
     "gtav_native_texture_recheck_frames",
+    "gtav_native_texture_min_lod",
+    "gtav_native_max_anisotropy",
     "gtav_touch_controls",
 };
 
@@ -248,6 +250,27 @@ void Build(uint32_t fps, double frame_ms) {
     }
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("Lower: textures the game streams in show up sooner (fewer gray blocks), more CPU.");
+  }
+  {
+    int mip = std::atoi(rex::cvar::GetFlagByName("gtav_native_texture_min_lod").c_str());
+    ImGui::SetNextItemWidth(260.0f * g_scale);
+    if (ImGui::SliderInt("Texture detail bias", &mip, 0, 4)) {
+      rex::cvar::SetFlagByName("gtav_native_texture_min_lod", std::to_string(mip));
+      changed = true;
+    }
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("0 keeps full texture detail. Higher values use smaller mip levels to reduce memory bandwidth.");
+  }
+  {
+    int anisotropy = std::atoi(rex::cvar::GetFlagByName("gtav_native_max_anisotropy").c_str());
+    if (anisotropy < 1) anisotropy = 1;
+    ImGui::SetNextItemWidth(260.0f * g_scale);
+    if (ImGui::SliderInt("Anisotropic filtering", &anisotropy, 1, 16)) {
+      rex::cvar::SetFlagByName("gtav_native_max_anisotropy", std::to_string(anisotropy));
+      changed = true;
+    }
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("Higher values keep road and ground textures sharper at oblique viewing angles.");
   }
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
