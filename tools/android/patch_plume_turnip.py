@@ -62,7 +62,7 @@ if driver_marker not in text:
                                                              &driverExtensionCount,
                                                              driverExtensions.data()) == VK_SUCCESS) {
                         for (const auto& extension : driverExtensions) {
-                            if (strcmp(extension.extensionName, VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME) == 0)
+                            if (std::string(extension.extensionName) == VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME)
                                 hasDriverProperties = true;
                         }
                     }
