@@ -33,6 +33,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name="com.gtavrecomp.app.DriverSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity
             android:name="com.gtavrecomp.app.GameActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
