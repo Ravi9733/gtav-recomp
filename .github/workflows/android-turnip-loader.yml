@@ -1,0 +1,60 @@
+name: Android Turnip loader libraries
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-turnip-ios-ui]
+    paths:
+      - "tools/android/build_turnip_loader.sh"
+      - ".github/workflows/android-turnip-loader.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-turnip-loader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake git
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Build pinned libadrenotools for arm64-v8a
+        env:
+          JOBS: "2"
+        run: bash tools/android/build_turnip_loader.sh
+
+      - name: Verify Android ABI and packaged libraries
+        run: |
+          TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          OUT="build/android-turnip/install/lib"
+          for lib in libadrenotools.so libmain_hook.so libfile_redirect_hook.so libgsl_alloc_hook.so libhook_impl.so; do
+            test -s "$OUT/$lib"
+            "$TOOLCHAIN/llvm-readelf" -h "$OUT/$lib" > "$lib.elf.txt"
+            grep -q "Machine:.*AArch64" "$lib.elf.txt"
+            "$TOOLCHAIN/llvm-readelf" -d "$OUT/$lib" > "$lib.dynamic.txt"
+          done
+          mkdir -p android-turnip-artifact
+          cp "$OUT"/*.so android-turnip-artifact/
+          cp ./*.elf.txt ./*.dynamic.txt android-turnip-artifact/
+
+      - name: Upload Turnip loader runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: adrenotools-turnip-loader-arm64-api30
+          path: android-turnip-artifact/
+          if-no-files-found: error
+          retention-days: 90
