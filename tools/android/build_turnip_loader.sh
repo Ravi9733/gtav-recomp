@@ -4,7 +4,13 @@
 # This only builds/packages the loader runtime; renderer activation is a separate step.
 set -euo pipefail
 
-source ~/android-tools/env.sh
+if [ -f "$HOME/android-tools/env.sh" ]; then
+  source "$HOME/android-tools/env.sh"
+fi
+if [ -z "${ANDROID_NDK_HOME:-}" ] && [ -n "${ANDROID_HOME:-}" ]; then
+  ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+  export ANDROID_NDK_HOME
+fi
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 SRC="$ROOT/build/deps/libadrenotools"
 BUILD="$ROOT/build/android-turnip"
