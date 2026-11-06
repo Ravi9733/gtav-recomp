@@ -72,6 +72,9 @@ set(GTAV_SOURCES
     src/native/shader_compiler.cpp
     src/native/touch_controls.cpp
 )
+if(ANDROID)
+    list(APPEND GTAV_SOURCES src/native/turnip_loader.cpp)
+endif()
 
 if(WIN32)
     add_executable(gtav WIN32 ${GTAV_SOURCES})
@@ -253,6 +256,16 @@ endif()
 if(NOT WIN32)
     find_package(SDL3 REQUIRED CONFIG COMPONENTS Headers)
     set(PLUME_SDL3_VULKAN_ENABLED ON CACHE BOOL "" FORCE)
+endif()
+if(ANDROID)
+    # Patch Plume before it is configured so Volk and the renderer use one Vulkan loader.
+    execute_process(
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../tools/android/patch_plume_turnip.py
+                ${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/plume/plume_vulkan.cpp
+        RESULT_VARIABLE GTAV_PLUME_TURNIP_PATCH_RESULT)
+    if(NOT GTAV_PLUME_TURNIP_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply the Android Turnip bridge to the external Plume checkout")
+    endif()
 endif()
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/plume ${CMAKE_BINARY_DIR}/plume EXCLUDE_FROM_ALL)
 set_target_properties(plume PROPERTIES POSITION_INDEPENDENT_CODE ON)
