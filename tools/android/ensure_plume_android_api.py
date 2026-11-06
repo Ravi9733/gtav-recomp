@@ -35,6 +35,9 @@ replace(types, "        ACCELERATION_STRUCTURE\n",
         "CONSTANT_BUFFER_DYNAMIC")
 after(types, "            COPY = 1U << 2,\n",
       "            FRAGMENT = 1U << 3,\n", "FRAGMENT = 1U << 3")
+
+after(types, "        bool depthAttachmentReadOnly = false;\n",
+      "        bool colorDiscard = false;\n", "colorDiscard")
 after(types, "        case RenderFormat::R16_FLOAT:\n",
       "        case RenderFormat::B5G6R5_UNORM:\n", "case RenderFormat::B5G6R5_UNORM", all_matches=True)
 
