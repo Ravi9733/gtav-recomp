@@ -143,6 +143,47 @@ jobs:
           sha256sum android-apk-artifact/GTAV-Android-Turnip.apk > android-apk-artifact/SHA256SUMS.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > android-apk-artifact/apk-badging.txt
 
+      - name: Create matching PC Build-for-Android package
+        run: |
+          # This folder is the exact Android shell input consumed by the desktop
+          # launcher's Build for Android command. Keep it paired with this APK.
+          mkdir -p android-pc-package/android/link \
+                   android-pc-package/android/interface \
+                   android-pc-package/android/include/simde \
+                   android-pc-package/android/LICENSES
+          cp android-apk-artifact/GTAV-Android-Turnip.apk android-pc-package/android/GTAV.apk
+          unzip -q -j -o android-pc-package/android/GTAV.apk \
+            lib/arm64-v8a/libgtav_fast.so lib/arm64-v8a/librexruntime.so \
+            -d android-pc-package/android/link
+          cp build/android-dll/game_interface/gtav_hooks.h \
+             build/android-dll/game_interface/gtav_game.exports \
+             android-pc-package/android/interface/
+          rsync -a --exclude='*.md' --exclude='*.txt' --exclude='.*' \
+            rexglue-sdk/thirdparty/simde/simde/ \
+            android-pc-package/android/include/simde/
+          cp rexglue-sdk/thirdparty/simde/COPYING \
+             android-pc-package/android/LICENSES/simde.txt
+          cp rexglue-sdk/thirdparty/sdl3/LICENSE.txt \
+             android-pc-package/android/LICENSES/SDL.txt
+          APK_LIB_SHA="$(sha256sum android-pc-package/android/link/libgtav_fast.so | cut -d' ' -f1)"
+          APK_EMBEDDED_SHA="$(unzip -p android-pc-package/android/GTAV.apk \
+            lib/arm64-v8a/libgtav_fast.so | sha256sum | cut -d' ' -f1)"
+          test "$APK_LIB_SHA" = "$APK_EMBEDDED_SHA"
+          printf 'APK: GTAV-Android-Turnip.apk\\nlibgtav_fast.so SHA-256: %s\\n' \
+            "$APK_LIB_SHA" > android-pc-package/ANDROID_PACK_MATCH.txt
+          (cd android-pc-package && zip -qr ../GTAV-Android-Turnip-PC-Package.zip android ANDROID_PACK_MATCH.txt)
+          sha256sum GTAV-Android-Turnip-PC-Package.zip > GTAV-Android-Turnip-PC-Package-SHA256.txt
+
+      - name: Upload matching PC Build-for-Android package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTAV-Android-Turnip-PC-Package
+          path: |
+            GTAV-Android-Turnip-PC-Package.zip
+            GTAV-Android-Turnip-PC-Package-SHA256.txt
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Upload Android release APK
         uses: actions/upload-artifact@v4
         with:
