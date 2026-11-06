@@ -38,6 +38,18 @@ extern "C" void* gtav_android_turnip_get_gipa();
 #endif"""
     text = text.replace(needle, replacement, 1)
 
+# The game menu receives only the identity reported by Vulkan itself.
+report_decl_marker = "// GTAV_ANDROID_DRIVER_REPORT_DECL"
+if report_decl_marker not in text:
+    namespace = "namespace plume {"
+    if namespace not in text:
+        raise SystemExit("Could not locate namespace plume for driver-report callback.")
+    text = text.replace(namespace, namespace + """
+#if defined(__ANDROID__)
+extern "C" void gtav_android_turnip_report_driver(const char*, const char*);
+#endif
+""", 1)
+
 # Query the actual Vulkan driver reported by each physical device. Do not infer Turnip from
 # the requested setting or from a successful adrenotools dlopen.
 driver_marker = "// GTAV_ANDROID_DRIVER_PROPERTIES"
@@ -77,6 +89,8 @@ if driver_marker not in text:
                     fprintf(stderr, "[native] Vulkan driver: %s | %s (vendor 0x%04X, device 0x%04X)\\n",
                             driverProperties.driverName, driverProperties.driverInfo,
                             properties2.properties.vendorID, properties2.properties.deviceID);
+                    gtav_android_turnip_report_driver(driverProperties.driverName,
+                                                     driverProperties.driverInfo);
                 } else {
                     fprintf(stderr, "[native] Vulkan driver properties extension unavailable for %s.\\n",
                             deviceProperties.deviceName);
