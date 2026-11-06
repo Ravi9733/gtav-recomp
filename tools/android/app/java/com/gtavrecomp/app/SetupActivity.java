@@ -334,11 +334,22 @@ public class SetupActivity extends Activity {
         note.setPadding(dp(4), dp(12), dp(4), 0);
         side.addView(note);
 
+        // Keep the two-column launcher layout, but let its content define its height.
+        // A vertical ScrollView prevents lower side-panel actions from being clipped
+        // on short displays and allows normal finger scrolling.
         root.addView(hero, new LinearLayout.LayoutParams(0,
-            LinearLayout.LayoutParams.MATCH_PARENT, 1.15f));
+            LinearLayout.LayoutParams.WRAP_CONTENT, 1.15f));
         root.addView(side, new LinearLayout.LayoutParams(0,
-            LinearLayout.LayoutParams.MATCH_PARENT, 0.85f));
-        return root;
+            LinearLayout.LayoutParams.WRAP_CONTENT, 0.85f));
+
+        ScrollView launcherScroll = new ScrollView(this);
+        launcherScroll.setFillViewport(true);
+        launcherScroll.setClipToPadding(false);
+        launcherScroll.setVerticalScrollBarEnabled(true);
+        launcherScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        launcherScroll.addView(root, new ScrollView.LayoutParams(
+            ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        return launcherScroll;
     }
 
     private void refreshHome() {
