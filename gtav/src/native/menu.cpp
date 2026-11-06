@@ -292,7 +292,10 @@ void Build(uint32_t fps, double frame_ms) {
   ImGui::Separator();
   ImGui::TextUnformatted("VULKAN DEVICE");
   ImGui::Text("Preferred GPU: %s", rex::cvar::GetFlagByName("gtav_native_device").c_str());
-  ImGui::TextDisabled("GPU selection is not driver selection. Android's Vulkan loader chooses the active driver; this APK does not bundle or load Turnip yet.");
+  const char* turnipRequest = std::getenv("GTAV_TURNIP_ENABLED");
+  const bool turnipRequested = turnipRequest && std::string(turnipRequest) == "1";
+  ImGui::Text("Turnip request: %s", turnipRequested ? "ON (selected driver)" : "OFF (system Vulkan)");
+  ImGui::TextDisabled("Request status is not proof of the active driver. Check the GtavTurnip startup log for loader success.");
 #endif
   ImGui::Separator();
   check("Touch controls", "gtav_touch_controls", "The on-screen gamepad (hidden while a controller is connected).");
