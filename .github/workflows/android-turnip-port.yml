@@ -4,7 +4,7 @@ on:
   push:
     branches: [turnip-port-0.3.0-safe]
     paths:
-      - ".github/workflows/android-full-apk.yml"
+      - ".github/workflows/android-turnip-port.yml"
       - "gtav/**"
       - "tools/android/**"
       - "*.patch"
