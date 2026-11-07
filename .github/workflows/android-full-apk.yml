@@ -2,7 +2,7 @@ name: Android full release APK
 
 on:
   push:
-    branches: [android-turnip-ios-ui]
+    branches: [android-turnip-ios-ui, "fix/adreno-constant-descriptor-guard"]
     paths:
       - ".github/workflows/android-full-apk.yml"
       - "gtav/**"
@@ -21,7 +21,7 @@ jobs:
       - name: Checkout Android Turnip branch
         uses: actions/checkout@v4
         with:
-          ref: android-turnip-ios-ui
+          ref: ${{ github.sha }}
 
       - name: Install host and Android build dependencies
         run: |
