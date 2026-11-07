@@ -208,6 +208,115 @@ if volk_device_marker not in text:
         raise SystemExit("Could not locate the unique Plume vkCreateDevice success block; refusing an unsafe patch.")
     text = text.replace(device_create, device_create_patched, 1)
 
+
+# Never expose a partially constructed descriptor set to the renderer. Plume's
+# VulkanDescriptorSet constructor can return early after descriptor-pool or set-layout
+# allocation fails, while createDescriptorSet() historically returned the wrapper anyway.
+# The next setBuffer() then forwarded a null VkDescriptorSet to vkUpdateDescriptorSets,
+# which has been observed to SIGSEGV inside the Android Adreno driver.
+descriptor_create_marker = "GTAV_ANDROID_DESCRIPTOR_SET_VALIDATION"
+if descriptor_create_marker not in text:
+    ctor_old = """        setLayout = new VulkanDescriptorSetLayout(device, desc);
+
+        descriptorPool = createDescriptorPool(device, typeCounts, desc.lastRangeIsBoundless);
+        if (descriptorPool == VK_NULL_HANDLE) {
+            return;
+        }"""
+    ctor_new = """        setLayout = new VulkanDescriptorSetLayout(device, desc);
+        if (setLayout == nullptr || setLayout->vk == VK_NULL_HANDLE) {
+            fprintf(stderr, "[native] descriptor-set creation failed: descriptor-set layout is null\\n");
+            return;
+        }
+
+        descriptorPool = createDescriptorPool(device, typeCounts, desc.lastRangeIsBoundless);
+        if (descriptorPool == VK_NULL_HANDLE) {
+            fprintf(stderr, "[native] descriptor-set creation failed: descriptor pool is null\\n");
+            return;
+        }"""
+    if text.count(ctor_old) != 1:
+        raise SystemExit("Could not locate unique VulkanDescriptorSet constructor allocation block.")
+    text = text.replace(ctor_old, ctor_new, 1)
+
+    ctor_alloc_old = """        VkResult res = vkAllocateDescriptorSets(device->vk, &allocateInfo, &vk);
+        if (res != VK_SUCCESS) {
+            fprintf(stderr, "vkAllocateDescriptorSets failed with error code 0x%X.\\n", res);
+            return;
+        }"""
+    ctor_alloc_new = """        VkResult res = vkAllocateDescriptorSets(device->vk, &allocateInfo, &vk);
+        if (res != VK_SUCCESS || vk == VK_NULL_HANDLE) {
+            fprintf(stderr, "[native] vkAllocateDescriptorSets failed: VkResult=0x%X set=%p\\n",
+                    res, reinterpret_cast<void*>(vk));
+            vk = VK_NULL_HANDLE;
+            return;
+        }"""
+    if text.count(ctor_alloc_old) != 1:
+        raise SystemExit("Could not locate unique vkAllocateDescriptorSets failure block.")
+    text = text.replace(ctor_alloc_old, ctor_alloc_new, 1)
+
+    create_old = """    std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
+        return std::make_unique<VulkanDescriptorSet>(this, desc);
+    }"""
+    create_new = """    std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
+        auto descriptorSet = std::make_unique<VulkanDescriptorSet>(this, desc);
+        if (!descriptorSet || descriptorSet->vk == VK_NULL_HANDLE ||
+            descriptorSet->descriptorPool == VK_NULL_HANDLE || descriptorSet->setLayout == nullptr ||
+            descriptorSet->setLayout->vk == VK_NULL_HANDLE) {
+            fprintf(stderr, "[native] refusing incomplete Vulkan descriptor set: device=%p set=%p pool=%p layout=%p\\n",
+                    reinterpret_cast<void*>(vk), descriptorSet ? reinterpret_cast<void*>(descriptorSet->vk) : nullptr,
+                    descriptorSet ? reinterpret_cast<void*>(descriptorSet->descriptorPool) : nullptr,
+                    descriptorSet && descriptorSet->setLayout ? reinterpret_cast<void*>(descriptorSet->setLayout->vk) : nullptr);
+            return nullptr;
+        }
+        return descriptorSet;
+    }"""
+    if text.count(create_old) != 1:
+        raise SystemExit("Could not locate unique VulkanDevice::createDescriptorSet implementation.")
+    text = text.replace(create_old, create_new, 1)
+
+    set_buffer_marker = "GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION"
+    buffer_old = """        const VulkanBuffer *interfaceBuffer = static_cast<const VulkanBuffer *>(buffer);
+        const VkBufferView *bufferView = nullptr;"""
+    buffer_new = """        const VulkanBuffer *interfaceBuffer = static_cast<const VulkanBuffer *>(buffer);
+#if defined(__ANDROID__)
+        if (device == nullptr || device->vk == VK_NULL_HANDLE || interfaceBuffer->device != device ||
+            interfaceBuffer->vk == VK_NULL_HANDLE || bufferSize > interfaceBuffer->desc.size) {
+            fprintf(stderr, "[native] refusing invalid Vulkan descriptor buffer: device=%p bufferDevice=%p buffer=%p size=%llu capacity=%llu\\n",
+                    device ? reinterpret_cast<void*>(device->vk) : nullptr,
+                    interfaceBuffer->device ? reinterpret_cast<void*>(interfaceBuffer->device->vk) : nullptr,
+                    reinterpret_cast<void*>(interfaceBuffer->vk),
+                    static_cast<unsigned long long>(bufferSize),
+                    static_cast<unsigned long long>(interfaceBuffer->desc.size));
+            return;
+        }
+#endif
+        const VkBufferView *bufferView = nullptr;"""
+    if text.count(buffer_old) != 1:
+        raise SystemExit("Could not locate unique VulkanDescriptorSet::setBuffer handle block.")
+    text = text.replace(buffer_old, buffer_new, 1)
+
+    set_desc_old = """    void VulkanDescriptorSet::setDescriptor(uint32_t descriptorIndex, const VkDescriptorBufferInfo *bufferInfo, const VkDescriptorImageInfo *imageInfo, const VkBufferView *texelBufferView, void *pNext) {
+        assert(descriptorIndex < setLayout->descriptorBindingIndices.size());"""
+    set_desc_new = """    void VulkanDescriptorSet::setDescriptor(uint32_t descriptorIndex, const VkDescriptorBufferInfo *bufferInfo, const VkDescriptorImageInfo *imageInfo, const VkBufferView *texelBufferView, void *pNext) {
+#if defined(__ANDROID__)
+        if (device == nullptr || device->vk == VK_NULL_HANDLE || vk == VK_NULL_HANDLE ||
+            descriptorPool == VK_NULL_HANDLE || setLayout == nullptr || setLayout->vk == VK_NULL_HANDLE) {
+            fprintf(stderr, "[native] skipped Vulkan descriptor update: incomplete descriptor set (set=%p pool=%p layout=%p)\\n",
+                    reinterpret_cast<void*>(vk), reinterpret_cast<void*>(descriptorPool),
+                    setLayout ? reinterpret_cast<void*>(setLayout->vk) : nullptr);
+            return;
+        }
+        if (descriptorIndex >= setLayout->descriptorBindingIndices.size() ||
+            descriptorIndex >= setLayout->descriptorIndexBases.size()) {
+            fprintf(stderr, "[native] skipped Vulkan descriptor update: descriptor index %u out of bounds\\n", descriptorIndex);
+            return;
+        }
+#endif
+        assert(descriptorIndex < setLayout->descriptorBindingIndices.size());"""
+    if text.count(set_desc_old) != 1:
+        raise SystemExit("Could not locate unique VulkanDescriptorSet::setDescriptor entry.")
+    text = text.replace(set_desc_old, set_desc_new, 1)
+    text = text.replace("GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION", descriptor_create_marker)
+
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
     "volkInitializeCustom(turnipGipa);",
