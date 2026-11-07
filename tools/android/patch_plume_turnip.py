@@ -257,6 +257,7 @@ if descriptor_create_marker not in text:
         return std::make_unique<VulkanDescriptorSet>(this, desc);
     }"""
     create_new = """    std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
+        // GTAV_ANDROID_DESCRIPTOR_SET_VALIDATION: do not return a wrapper whose Vulkan allocation failed.
         auto descriptorSet = std::make_unique<VulkanDescriptorSet>(this, desc);
         if (!descriptorSet || descriptorSet->vk == VK_NULL_HANDLE ||
             descriptorSet->descriptorPool == VK_NULL_HANDLE || descriptorSet->setLayout == nullptr ||
