@@ -289,6 +289,7 @@ if(ANDROID)
         "-Wl,-u,_ZN5plume14g_clearLoadOpsE"
         "-Wl,-u,_ZN5plume23g_colorInputAttachmentsE"
         "-Wl,-u,_ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE"
+        "-Wl,-u,_ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE"
         "-Wl,--export-dynamic-symbol=_ZN5plume18g_statRenderPassesE"
         "-Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume14g_statBarriersE"
@@ -298,6 +299,7 @@ if(ANDROID)
         "-Wl,--export-dynamic-symbol=_ZN5plume14g_clearLoadOpsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume23g_colorInputAttachmentsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE"
+        "-Wl,--export-dynamic-symbol=_ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE"
         "-Wl,--export-dynamic")
 endif()
 
