@@ -56,8 +56,8 @@ jobs:
         run: |
           set -euxo pipefail
           git clone --branch v0.10.0 --depth 1 --recurse-submodules https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
-          git -C rexglue-sdk apply --check rexglue-sdk-gtav-linux.patch
-          git -C rexglue-sdk apply rexglue-sdk-gtav-linux.patch
+          git -C rexglue-sdk apply --check ../rexglue-sdk-gtav-linux.patch
+          git -C rexglue-sdk apply ../rexglue-sdk-gtav-linux.patch
           (
             cd rexglue-sdk/thirdparty/sdl3
             git apply --check ../../../sdl3-gtav.patch
