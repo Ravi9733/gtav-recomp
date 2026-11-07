@@ -85,6 +85,9 @@ jobs:
           # The source archive's Plume headers can differ from the patch's git index state.
           # Apply and verify the public API additions directly in the include tree used by Clang.
           python3 tools/android/ensure_plume_android_api.py
+          # Apply the Android Vulkan descriptor-handle guards and the selected-driver Volk bridge.
+          # This must run after the upstream Plume patch and before compiling the SDK.
+          python3 tools/android/patch_plume_turnip.py thirdparty/plume/plume_vulkan.cpp
 
       - name: Build ReXGlue Android ARM64 SDK
         env:
