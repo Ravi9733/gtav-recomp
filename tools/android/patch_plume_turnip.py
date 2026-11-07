@@ -136,11 +136,47 @@ add_virtual_after(
     "setGraphicsRootDescriptor")
 interface.write_text(header)
 
+# Resolve buffer-device-address through the selected VkDevice instead of Volk's global
+# trampoline. Some Adreno/Turnip loader combinations expose a non-null global trampoline whose
+# device dispatch target is null; invoking it jumps to PC 0. A device-proc lookup returns the
+# selected driver's entry point and is checked before calling.
+bda_marker = "GTAV_ANDROID_DEVICE_BDA_DISPATCH"
+if bda_marker not in text:
+    old_bda = """        if (vkGetBufferDeviceAddressKHR != nullptr) {
+            return vkGetBufferDeviceAddressKHR(device->vk, &info);
+        }
+        if (vkGetBufferDeviceAddress != nullptr) {
+            return vkGetBufferDeviceAddress(device->vk, &info);
+        }
+        return 0;"""
+    new_bda = """        // GTAV_ANDROID_DEVICE_BDA_DISPATCH: use this VkDevice's driver entry point,
+        // not Volk's process-global device trampoline (which can have a null driver target).
+        if (!device->capabilities.bufferDeviceAddress) return 0;
+        auto getAddress = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
+            vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddressKHR"));
+        if (!getAddress) {
+            getAddress = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
+                vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddress"));
+        }
+        if (!getAddress) {
+            static bool reported = false;
+            if (!reported) {
+                reported = true;
+                fprintf(stderr, "[native] buffer-device-address entry point unavailable on selected Vulkan device\\n");
+            }
+            return 0;
+        }
+        return getAddress(device->vk, &info);"""
+    if text.count(old_bda) != 1:
+        raise SystemExit("Could not locate the exact Plume buffer-device-address dispatch block; refusing an unsafe patch.")
+    text = text.replace(old_bda, new_bda, 1)
+
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
     "volkInitializeCustom(turnipGipa);",
     "GTAV_ANDROID_DRIVER_PROPERTIES",
     "gtav_android_turnip_report_driver(driverProperties.driverName",
+    "GTAV_ANDROID_DEVICE_BDA_DISPATCH",
 )
 missing = [marker for marker in required if marker not in text]
 if missing:
