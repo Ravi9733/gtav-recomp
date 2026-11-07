@@ -9,11 +9,13 @@ __attribute__((visibility("default"))) std::uint32_t g_statLoadClears = 0;
 __attribute__((visibility("default"))) std::uint32_t g_statBarriers = 0;
 __attribute__((visibility("default"))) std::uint32_t g_statClearsPartial = 0;
 __attribute__((visibility("default"))) std::uint32_t g_statClearsInPass = 0;
+__attribute__((visibility("default"))) std::uint32_t g_exactBarrierStages = 0;
 #else
 std::uint32_t g_statRenderPasses = 0;
 std::uint32_t g_statLoadClears = 0;
 std::uint32_t g_statBarriers = 0;
 std::uint32_t g_statClearsPartial = 0;
 std::uint32_t g_statClearsInPass = 0;
+std::uint32_t g_exactBarrierStages = 0;
 #endif
 }  // namespace plume
