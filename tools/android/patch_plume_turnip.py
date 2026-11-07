@@ -1,136 +1,224 @@
 #!/usr/bin/env python3
-"""Patch Plume so Volk uses the app-selected Android Vulkan loader and reports real driver identity."""
+"""Apply Android Turnip Volk dispatch and driver-identity logging to external Plume."""
 from pathlib import Path
 import sys
 
 if len(sys.argv) != 2:
-    raise SystemExit("usage: patch_plume_turnip.py /path/to/plume_vulkan.cpp")
+    raise SystemExit("usage: patch_plume_turnip.py /path/to/thirdparty/plume/plume_vulkan.cpp")
+
 source = Path(sys.argv[1])
 if not source.is_file():
     raise SystemExit(f"Plume source not found: {source}")
+
 text = source.read_text()
 
-if "GTAV_ANDROID_TURNIP_VOLK_BRIDGE" not in text:
+# Renderer counters are declared extern by plume-gtav.patch and defined in
+# tools/android/plume_export.cpp, which is compiled directly into libgtav_fast.so.
+
+# Inject the app-owned libadrenotools GIPA before Plume initializes Volk. If Turnip is not
+# requested or the custom loader fails, Volk keeps its normal Android system-loader behavior.
+volk_marker = "// GTAV_ANDROID_TURNIP_VOLK_BRIDGE"
+if volk_marker not in text:
     namespace = "namespace plume {"
     if namespace not in text:
-        raise SystemExit("Could not locate namespace plume")
+        raise SystemExit("Could not locate namespace plume in plume_vulkan.cpp")
     text = text.replace(namespace, namespace + """
 #if defined(__ANDROID__)
 extern "C" void* gtav_android_turnip_get_gipa();
 #endif
 """, 1)
+
     needle = "        VkResult res = volkInitialize();"
     if text.count(needle) != 1:
-        raise SystemExit("Expected exactly one Volk initialization site; refusing unsafe patch")
+        raise SystemExit("Expected exactly one Volk initialization site; refusing an unsafe patch.")
     replacement = """#if defined(__ANDROID__)
-        // GTAV_ANDROID_TURNIP_VOLK_BRIDGE: keep all Vulkan entry points on one loader.
-        auto turnipGipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(gtav_android_turnip_get_gipa());
+        // GTAV_ANDROID_TURNIP_VOLK_BRIDGE: use one injected loader for every Vulkan call.
+        auto turnipGipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+            gtav_android_turnip_get_gipa());
         VkResult res = VK_SUCCESS;
-        if (turnipGipa) volkInitializeCustom(turnipGipa);
-        else res = volkInitialize();
+        if (turnipGipa) {
+            volkInitializeCustom(turnipGipa);
+        } else {
+            res = volkInitialize();
+        }
 #else
         VkResult res = volkInitialize();
 #endif"""
     text = text.replace(needle, replacement, 1)
 
-if "GTAV_ANDROID_DRIVER_REPORT_DECL" not in text:
+# The game menu receives only the identity reported by Vulkan itself.
+report_decl_marker = "// GTAV_ANDROID_DRIVER_REPORT_DECL"
+if report_decl_marker not in text:
     namespace = "namespace plume {"
     if namespace not in text:
-        raise SystemExit("Could not locate namespace plume for driver report")
+        raise SystemExit("Could not locate namespace plume for driver-report callback.")
     text = text.replace(namespace, namespace + """
 #if defined(__ANDROID__)
+// GTAV_ANDROID_DRIVER_REPORT_DECL
 extern "C" void gtav_android_turnip_report_driver(const char*, const char*);
 #endif
 """, 1)
 
-if "GTAV_ANDROID_DRIVER_PROPERTIES" not in text:
+# Query the actual Vulkan driver reported by each physical device. Do not infer Turnip from
+# the requested setting or from a successful adrenotools dlopen.
+driver_marker = "// GTAV_ANDROID_DRIVER_PROPERTIES"
+if driver_marker not in text:
     section = text.find("// Fill device names.")
     if section < 0:
-        raise SystemExit("Could not locate physical-device enumeration")
+        raise SystemExit("Could not locate Plume physical-device enumeration for driver reporting.")
     needle = """                VkPhysicalDeviceProperties deviceProperties;
                 vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);"""
     at = text.find(needle, section)
     if at < 0:
-        raise SystemExit("Could not locate physical-device properties query")
+        raise SystemExit("Could not locate physical-device property query; refusing an unsafe patch.")
     replacement = needle + """
 #if defined(__ANDROID__)
-                // GTAV_ANDROID_DRIVER_PROPERTIES: report the identity returned by Vulkan itself.
-                uint32_t extensionCount = 0;
+                // GTAV_ANDROID_DRIVER_PROPERTIES: report the driver selected by the Vulkan loader.
+                uint32_t driverExtensionCount = 0;
                 bool hasDriverProperties = deviceProperties.apiVersion >= VK_API_VERSION_1_2;
-                if (vkEnumerateDeviceExtensionProperties(physicalDevices[i], nullptr, &extensionCount, nullptr) == VK_SUCCESS) {
-                    std::vector<VkExtensionProperties> extensions(extensionCount);
-                    if (vkEnumerateDeviceExtensionProperties(physicalDevices[i], nullptr, &extensionCount, extensions.data()) == VK_SUCCESS) {
-                        for (const auto& extension : extensions)
-                            if (std::string(extension.extensionName) == "VK_KHR_driver_properties") hasDriverProperties = true;
+                if (vkEnumerateDeviceExtensionProperties(physicalDevices[i], nullptr,
+                                                         &driverExtensionCount, nullptr) == VK_SUCCESS) {
+                    std::vector<VkExtensionProperties> driverExtensions(driverExtensionCount);
+                    if (vkEnumerateDeviceExtensionProperties(physicalDevices[i], nullptr,
+                                                             &driverExtensionCount,
+                                                             driverExtensions.data()) == VK_SUCCESS) {
+                        for (const auto& extension : driverExtensions) {
+                            if (std::string(extension.extensionName) == "VK_KHR_driver_properties")
+                                hasDriverProperties = true;
+                        }
                     }
                 }
                 if (hasDriverProperties) {
-                    VkPhysicalDeviceDriverProperties driver = {};
-                    driver.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
-                    VkPhysicalDeviceProperties2 properties = {};
-                    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-                    properties.pNext = &driver;
-                    vkGetPhysicalDeviceProperties2(physicalDevices[i], &properties);
-                    fprintf(stderr, "[native] Vulkan driver: %s | %s\\n", driver.driverName, driver.driverInfo);
-                    gtav_android_turnip_report_driver(driver.driverName, driver.driverInfo);
+                    VkPhysicalDeviceDriverProperties driverProperties = {};
+                    driverProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
+                    VkPhysicalDeviceProperties2 properties2 = {};
+                    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+                    properties2.pNext = &driverProperties;
+                    vkGetPhysicalDeviceProperties2(physicalDevices[i], &properties2);
+                    fprintf(stderr, "[native] Vulkan driver: %s | %s (vendor 0x%04X, device 0x%04X)\\n",
+                            driverProperties.driverName, driverProperties.driverInfo,
+                            properties2.properties.vendorID, properties2.properties.deviceID);
+                    gtav_android_turnip_report_driver(driverProperties.driverName,
+                                                     driverProperties.driverInfo);
+                } else {
+                    fprintf(stderr, "[native] Vulkan driver properties extension unavailable for %s.\\n",
+                            deviceProperties.deviceName);
                 }
 #endif"""
     text = text[:at] + text[at:].replace(needle, replacement, 1)
 
-# Resolve BDA through the selected device, not a process-global dispatch pointer.
-if "GTAV_ANDROID_DEVICE_BDA_DISPATCH" not in text:
+# Keep the deferred renderer interface compatible with the GTAV Vulkan backend.
+# The Android source bundle may contain an older Plume interface header.
+interface = source.with_name("plume_render_interface.h")
+if not interface.is_file():
+    raise SystemExit(f"Plume render interface not found: {interface}")
+header = interface.read_text()
+
+def add_virtual_after(anchor: str, declaration: str, label: str) -> None:
+    global header
+    if label in header:
+        return
+    if anchor not in header:
+        raise SystemExit(f"Cannot locate Plume interface insertion point for {label}")
+    header = header.replace(anchor, anchor + "\n        " + declaration, 1)
+
+add_virtual_after(
+    "virtual void setGraphicsDescriptorSet(RenderDescriptorSet *descriptorSet, uint32_t setIndex) = 0;",
+    "virtual void setGraphicsDescriptorSetDynamic(RenderDescriptorSet *descriptorSet, uint32_t setIndex, const uint32_t *dynamicOffsets, uint32_t dynamicOffsetCount) {}",
+    "setGraphicsDescriptorSetDynamic")
+add_virtual_after(
+    "virtual void writeTimestamp(const RenderQueryPool *queryPool, uint32_t queryIndex) = 0;",
+    "virtual void beginOcclusionQuery(const RenderQueryPool *queryPool, uint32_t queryIndex) {}\n        virtual void endOcclusionQuery(const RenderQueryPool *queryPool, uint32_t queryIndex) {}\n        virtual void setFragmentShadingRate(uint32_t width, uint32_t height) {}",
+    "beginOcclusionQuery")
+add_virtual_after(
+    "virtual void setGraphicsDescriptorSet(RenderDescriptorSet *descriptorSet, uint32_t setIndex) = 0;",
+    "virtual void setGraphicsRootDescriptor(RenderBufferReference bufferReference, uint32_t rootDescriptorIndex) {}",
+    "setGraphicsRootDescriptor")
+interface.write_text(header)
+
+# Resolve buffer-device-address through the selected VkDevice instead of Volk's
+# process-global device trampoline. Patch only the uniquely delimited method body: upstream
+# and the maintained plume-gtav.patch have changed its internal spelling/whitespace over time.
+bda_marker = "GTAV_ANDROID_DEVICE_BDA_DISPATCH"
+if bda_marker not in text:
     start_marker = "    uint64_t VulkanBuffer::getDeviceAddress() const {"
     end_marker = "\n    // VulkanBufferFormattedView"
     start = text.find(start_marker)
     if start < 0 or text.find(start_marker, start + 1) >= 0:
-        raise SystemExit("Could not locate one unique VulkanBuffer::getDeviceAddress")
+        raise SystemExit("Could not locate one unique VulkanBuffer::getDeviceAddress method; refusing an unsafe patch.")
     end = text.find(end_marker, start)
     if end < 0:
-        raise SystemExit("Could not locate end of VulkanBuffer::getDeviceAddress")
+        raise SystemExit("Could not locate the end of VulkanBuffer::getDeviceAddress; refusing an unsafe patch.")
     method = """    uint64_t VulkanBuffer::getDeviceAddress() const {
-        // GTAV_ANDROID_DEVICE_BDA_DISPATCH
+        // GTAV_ANDROID_DEVICE_BDA_DISPATCH: use this VkDevice's driver entry point,
+        // not Volk's process-global device trampoline (which can have a null driver target).
         if (device == nullptr || device->vk == VK_NULL_HANDLE || vk == VK_NULL_HANDLE ||
-            !device->capabilities.bufferDeviceAddress) return 0;
+            !device->capabilities.bufferDeviceAddress) {
+            return 0;
+        }
         VkBufferDeviceAddressInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
         info.buffer = vk;
-        auto getKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
+
+        auto getAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
             vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddressKHR"));
-        if (getKHR) return getKHR(device->vk, &info);
-        auto getCore = reinterpret_cast<PFN_vkGetBufferDeviceAddress>(
+        if (getAddressKHR != nullptr) {
+            return getAddressKHR(device->vk, &info);
+        }
+
+        auto getAddressCore = reinterpret_cast<PFN_vkGetBufferDeviceAddress>(
             vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddress"));
-        return getCore ? getCore(device->vk, &info) : 0;
+        if (getAddressCore != nullptr) {
+            return getAddressCore(device->vk, &info);
+        }
+
+        static bool reported = false;
+        if (!reported) {
+            reported = true;
+            fprintf(stderr, "[native] buffer-device-address entry point unavailable on selected Vulkan device\\n");
+        }
+        return 0;
     }"""
     text = text[:start] + method + text[end:]
 
-if "GTAV_ANDROID_VOLK_DEVICE_DISPATCH" not in text:
-    needle = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+# Volk has separate instance- and device-level dispatch tables. The Turnip GIPA is
+# installed before instance creation above; load the selected VkDevice immediately after
+# vkCreateDevice so every device command (descriptor updates, buffer addresses, queues, etc.)
+# is resolved through that same custom driver rather than an uninitialized/null dispatch slot.
+volk_device_marker = "GTAV_ANDROID_VOLK_DEVICE_DISPATCH"
+if volk_device_marker not in text:
+    device_create = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
         if (res != VK_SUCCESS) {
             fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\\n", res);
             return;
         }
 
         for (uint32_t i = 0; i < queueFamilyCount; i++) {"""
-    replacement = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+    device_create_patched = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
         if (res != VK_SUCCESS) {
             fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\\n", res);
             return;
         }
 
-        // GTAV_ANDROID_VOLK_DEVICE_DISPATCH: populate device-level Volk function pointers.
+        // GTAV_ANDROID_VOLK_DEVICE_DISPATCH: required after vkCreateDevice for the custom Turnip GIPA.
         volkLoadDevice(vk);
 
         for (uint32_t i = 0; i < queueFamilyCount; i++) {"""
-    if text.count(needle) != 1:
-        raise SystemExit("Could not locate unique vkCreateDevice success block")
-    text = text.replace(needle, replacement, 1)
+    if text.count(device_create) != 1:
+        raise SystemExit("Could not locate the unique Plume vkCreateDevice success block; refusing an unsafe patch.")
+    text = text.replace(device_create, device_create_patched, 1)
 
-required = ("volkInitializeCustom(turnipGipa)", "GTAV_ANDROID_DRIVER_PROPERTIES",
-            "gtav_android_turnip_report_driver(driver.driverName", "GTAV_ANDROID_DEVICE_BDA_DISPATCH",
-            "GTAV_ANDROID_VOLK_DEVICE_DISPATCH")
-missing = [x for x in required if x not in text]
+# Fail closed if a future upstream Plume change or edit drops either integration seam.
+required = (
+    "volkInitializeCustom(turnipGipa);",
+    "GTAV_ANDROID_DRIVER_PROPERTIES",
+    "gtav_android_turnip_report_driver(driverProperties.driverName",
+    "GTAV_ANDROID_DEVICE_BDA_DISPATCH",
+    "GTAV_ANDROID_VOLK_DEVICE_DISPATCH",
+)
+missing = [marker for marker in required if marker not in text]
 if missing:
-    raise SystemExit("Turnip patch verification failed: " + ", ".join(missing))
-text = text.replace("        volkLoadDevice(vk);", "        volkLoadDevice(vk);", 1)
+    raise SystemExit("Turnip Plume patch verification failed: " + ", ".join(missing))
+
 source.write_text(text)
-print("Applied and verified Android Turnip Volk bridge.")
+print("Applied and verified Android Turnip Volk bridge and Vulkan driver-identity logging to Plume.")
