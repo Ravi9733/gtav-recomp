@@ -324,6 +324,10 @@ required = (
     "gtav_android_turnip_report_driver(driverProperties.driverName",
     "GTAV_ANDROID_DEVICE_BDA_DISPATCH",
     "GTAV_ANDROID_VOLK_DEVICE_DISPATCH",
+    "GTAV_ANDROID_DESCRIPTOR_SET_VALIDATION",
+    "GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION",
+    "skipped Vulkan descriptor update",
+    "refusing invalid Vulkan descriptor buffer",
 )
 missing = [marker for marker in required if marker not in text]
 if missing:
