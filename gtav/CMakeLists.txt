@@ -286,12 +286,14 @@ if(ANDROID)
         "-Wl,-u,_ZN5plume19g_statClearsPartialE"
         "-Wl,-u,_ZN5plume18g_statClearsInPassE"
         "-Wl,-u,_ZN5plume20g_exactBarrierStagesE"
+        "-Wl,-u,_ZN5plume14g_clearLoadOpsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume18g_statRenderPassesE"
         "-Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE"
         "-Wl,--export-dynamic-symbol=_ZN5plume14g_statBarriersE"
         "-Wl,--export-dynamic-symbol=_ZN5plume19g_statClearsPartialE"
         "-Wl,--export-dynamic-symbol=_ZN5plume18g_statClearsInPassE"
         "-Wl,--export-dynamic-symbol=_ZN5plume20g_exactBarrierStagesE"
+        "-Wl,--export-dynamic-symbol=_ZN5plume14g_clearLoadOpsE"
         "-Wl,--export-dynamic")
 endif()
 
