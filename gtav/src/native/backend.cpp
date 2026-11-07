@@ -2489,16 +2489,30 @@ struct Backend::Impl {
 
 #if GTAV_MOBILE
   RenderDescriptorSet* ConstantSetImpl(const RenderBuffer* vs, const RenderBuffer* ps, const RenderBuffer* shared) {
+    // Never pass a missing device or upload-ring buffer into Plume's Vulkan descriptor update.
+    // Some Adreno driver builds dereference invalid descriptor/buffer handles in
+    // vkUpdateDescriptorSets instead of returning a validation error (SIGSEGV in the driver).
+    if (!device || !vs || !ps || !shared) {
+      REXLOG_ERROR("[native] refusing constant descriptor update: device={} vs={} ps={} shared={}",
+                   static_cast<const void*>(device), static_cast<const void*>(vs),
+                   static_cast<const void*>(ps), static_cast<const void*>(shared));
+      return nullptr;
+    }
     auto key = std::make_tuple(vs, ps, shared);
     auto it = ubo_sets.find(key);
     if (it != ubo_sets.end()) return it->second.get();
     auto set = ubo_builder.create(device);
-    if (set) {
-      set->setBuffer(0, vs, kAluSize);
-      set->setBuffer(1, ps, kAluSize);
-      set->setBuffer(2, shared, kSharedConstantsSize);
+    if (!set) {
+      REXLOG_ERROR("[native] failed to allocate constant descriptor set (VS={} PS={} shared={})",
+                   static_cast<const void*>(vs), static_cast<const void*>(ps), static_cast<const void*>(shared));
+      return nullptr;
     }
-    return (ubo_sets[key] = std::move(set)).get();
+    set->setBuffer(0, vs, kAluSize);
+    set->setBuffer(1, ps, kAluSize);
+    set->setBuffer(2, shared, kSharedConstantsSize);
+    auto* result = set.get();
+    ubo_sets.emplace(key, std::move(set));
+    return result;
   }
 #endif
 
