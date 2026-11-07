@@ -12,6 +12,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
+
+// Export the Plume load-clear counter from libgtav_fast.so. The game DLL imports this
+// symbol when it is dlopened; defining it in this target ensures it is in the host DSO.
+namespace plume {
+__attribute__((visibility("default"))) uint32_t g_statLoadClears = 0;
+}
+
 #include <string>
 
 REXCVAR_DEFINE_BOOL(gtav_native_stats, false, "GTAV", "Log per-second frame time and D3D call counts");
