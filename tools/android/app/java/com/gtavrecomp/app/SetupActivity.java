@@ -144,9 +144,21 @@ public class SetupActivity extends Activity {
         if (!lib.exists() || !info.exists()) return "No game pack yet.";
         String shell = readShell(info);
         String mine = sha256(new File(getApplicationInfo().nativeLibraryDir, "libgtav_fast.so"));
-        if (shell == null || !shell.equals(mine))
+        if (shell == null || (!shell.equals(mine) && !isKnownCompatibleLegacyShell(shell)))
             return "The game pack was made for another version of this app: run Build for Android "
                 + "again with the download that has this APK.";
+        return null;
+    }
+
+    /**
+     * Legacy v0.3.0 Android pack shell. This exact hash is the original public shell used to
+     * generate existing packs. The Turnip port preserves its game-facing exports and only adds
+     * the Turnip GIPA/driver-report bridge; do not broaden this allowlist.
+     */
+    private static boolean isKnownCompatibleLegacyShell(String shell) {
+        return "840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90"
+            .equalsIgnoreCase(shell);
+    }
         return null;
     }
 
