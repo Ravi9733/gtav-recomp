@@ -151,6 +151,13 @@ jobs:
           cp "$APK" android-apk-artifact/GTAV-Android-Turnip.apk
           sha256sum android-apk-artifact/GTAV-Android-Turnip.apk > android-apk-artifact/SHA256SUMS.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > android-apk-artifact/apk-badging.txt
+          # Verify exports in the final stripped APK library, not only the pre-package .so.
+          for symbol in _ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE _ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE; do
+            "$TOOLCHAIN/llvm-nm" -D --defined-only apk-check/lib/arm64-v8a/libgtav_fast.so | grep -Fq "$symbol" || {
+              echo "Packaged APK libgtav_fast.so is missing required Plume ABI export: $symbol" >&2
+              exit 1
+            }
+          done
 
       - name: Create matching PC Build-for-Android package
         run: |
