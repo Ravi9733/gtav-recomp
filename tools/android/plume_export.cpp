@@ -11,6 +11,7 @@ __attribute__((visibility("default"))) std::uint32_t g_statClearsPartial = 0;
 __attribute__((visibility("default"))) std::uint32_t g_statClearsInPass = 0;
 __attribute__((visibility("default"))) std::uint32_t g_exactBarrierStages = 0;
 __attribute__((visibility("default"))) std::uint32_t g_clearLoadOps = 0;
+__attribute__((visibility("default"))) bool g_colorInputAttachments = false;
 #else
 std::uint32_t g_statRenderPasses = 0;
 std::uint32_t g_statLoadClears = 0;
