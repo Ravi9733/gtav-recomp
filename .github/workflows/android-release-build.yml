@@ -63,11 +63,6 @@ jobs:
             git apply --check ../../../sdl3-gtav.patch
             git apply ../../../sdl3-gtav.patch
           )
-          (
-            cd rexglue-sdk/thirdparty/plume
-            git apply --check ../../../plume-gtav.patch
-            git apply ../../../plume-gtav.patch
-          )
 
       - name: Build host ReXGlue code generator
         shell: bash
