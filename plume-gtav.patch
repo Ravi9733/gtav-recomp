@@ -249,9 +249,10 @@ index 4fdc4bf..fe25401 100644
 +    extern uint32_t g_statLoadClears;
 +    uint32_t g_statClearsInPass = 0, g_statClearsPartial = 0;  // clears that could not become load ops, and why
 +
++    // Defined in the host export translation unit so the Android dlopen ABI is stable.
++    extern std::vector<uint8_t> g_androidPipelineCacheSeed;
 +    static std::vector<uint8_t> &pipelineCacheSeed() {
-+        static std::vector<uint8_t> seed;
-+        return seed;
++        return g_androidPipelineCacheSeed;
 +    }
 +
      // Backend constants.
@@ -851,7 +852,7 @@ index 4fdc4bf..fe25401 100644
          }
  
 +        {
-+            std::vector<uint8_t> seed = std::move(pipelineCacheSeed());
++            std::vector<uint8_t> seed = pipelineCacheSeed();
 +            VkPipelineCacheCreateInfo cacheInfo = {};
 +            cacheInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 +            cacheInfo.initialDataSize = seed.size();
@@ -961,26 +962,6 @@ index 4fdc4bf..fe25401 100644
          return instance != nullptr;
      }
  
-+    __attribute__((visibility("default"))) void SetVulkanPipelineCacheData(std::vector<uint8_t> data) {
-+        pipelineCacheSeed() = std::move(data);
-+    }
-+
-+    __attribute__((visibility("default"))) std::vector<uint8_t> GetVulkanPipelineCacheData(RenderDevice *device) {
-+        auto *vulkanDevice = static_cast<VulkanDevice *>(device);
-+        std::vector<uint8_t> data;
-+        size_t size = 0;
-+        if (vulkanDevice == nullptr || vulkanDevice->pipelineCache == VK_NULL_HANDLE ||
-+            vkGetPipelineCacheData(vulkanDevice->vk, vulkanDevice->pipelineCache, &size, nullptr) != VK_SUCCESS) {
-+            return data;
-+        }
-+        data.resize(size);
-+        if (vkGetPipelineCacheData(vulkanDevice->vk, vulkanDevice->pipelineCache, &size, data.data()) != VK_SUCCESS) {
-+            data.clear();
-+        }
-+        data.resize(size);
-+        return data;
-+    }
-+
      // Global creation function.
  
  #if defined(PLUME_SDL2_VULKAN_ENABLED)
