@@ -175,12 +175,40 @@ if bda_marker not in text:
     elif bda_marker not in text:
         raise SystemExit("Could not locate a known Plume buffer-device-address implementation; refusing an unsafe patch.")
 
+# Volk has separate instance- and device-level dispatch tables. The Turnip GIPA is
+# installed before instance creation above; load the selected VkDevice immediately after
+# vkCreateDevice so every device command (descriptor updates, buffer addresses, queues, etc.)
+# is resolved through that same custom driver rather than an uninitialized/null dispatch slot.
+volk_device_marker = "GTAV_ANDROID_VOLK_DEVICE_DISPATCH"
+if volk_device_marker not in text:
+    device_create = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+        if (res != VK_SUCCESS) {
+            fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\\n", res);
+            return;
+        }
+
+        for (uint32_t i = 0; i < queueFamilyCount; i++) {"""
+    device_create_patched = """        VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+        if (res != VK_SUCCESS) {
+            fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\\n", res);
+            return;
+        }
+
+        // GTAV_ANDROID_VOLK_DEVICE_DISPATCH: required after vkCreateDevice for the custom Turnip GIPA.
+        volkLoadDevice(vk);
+
+        for (uint32_t i = 0; i < queueFamilyCount; i++) {"""
+    if text.count(device_create) != 1:
+        raise SystemExit("Could not locate the unique Plume vkCreateDevice success block; refusing an unsafe patch.")
+    text = text.replace(device_create, device_create_patched, 1)
+
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
     "volkInitializeCustom(turnipGipa);",
     "GTAV_ANDROID_DRIVER_PROPERTIES",
     "gtav_android_turnip_report_driver(driverProperties.driverName",
     "GTAV_ANDROID_DEVICE_BDA_DISPATCH",
+    "GTAV_ANDROID_VOLK_DEVICE_DISPATCH",
 )
 missing = [marker for marker in required if marker not in text]
 if missing:
