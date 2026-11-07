@@ -159,8 +159,6 @@ public class SetupActivity extends Activity {
         return "840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90"
             .equalsIgnoreCase(shell);
     }
-        return null;
-    }
 
     private static String readShell(File info) {
         try (BufferedReader r = new BufferedReader(new FileReader(info))) {
