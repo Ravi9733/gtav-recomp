@@ -49,8 +49,8 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          git -C rexglue-sdk apply --check rexglue-sdk-gtav-linux.patch
-          git -C rexglue-sdk apply rexglue-sdk-gtav-linux.patch
+          git -C rexglue-sdk apply --check ../rexglue-sdk-gtav-linux.patch
+          git -C rexglue-sdk apply ../rexglue-sdk-gtav-linux.patch
           (
             cd rexglue-sdk/thirdparty/sdl3
             git apply --check ../../../sdl3-gtav.patch
