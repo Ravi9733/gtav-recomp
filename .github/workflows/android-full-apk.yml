@@ -118,7 +118,7 @@ jobs:
           # Fail the APK build if Plume's shared renderer counters are not exported by the
           # shell library. This prevents a successful package with dlopen-time undefined symbols.
           NM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          for symbol in _ZN5plume18g_statRenderPassesE _ZN5plume16g_statLoadClearsE _ZN5plume14g_statBarriersE _ZN5plume19g_statClearsPartialE _ZN5plume18g_statClearsInPassE; do
+          for symbol in _ZN5plume18g_statRenderPassesE _ZN5plume16g_statLoadClearsE _ZN5plume14g_statBarriersE _ZN5plume19g_statClearsPartialE _ZN5plume18g_statClearsInPassE _ZN5plume20g_exactBarrierStagesE; do
             "$NM" -D --defined-only build/android-dll/libgtav_fast.so | grep -Fq "$symbol" || {
               echo "libgtav_fast.so does not export required Plume symbol: $symbol" >&2
               exit 1
