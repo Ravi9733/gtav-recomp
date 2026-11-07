@@ -82,6 +82,8 @@ jobs:
           git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
           git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
+          # Match the Android renderer API expected by this branch against the v0.3.0 Plume source bundle.
+          python3 tools/android/ensure_plume_android_api.py
 
       - name: Build ReXGlue Android ARM64 SDK
         env:
