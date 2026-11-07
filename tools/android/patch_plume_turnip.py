@@ -142,7 +142,7 @@ interface.write_text(header)
 bda_marker = "GTAV_ANDROID_DEVICE_BDA_DISPATCH"
 if bda_marker not in text:
     start_marker = "    uint64_t VulkanBuffer::getDeviceAddress() const {"
-    end_marker = "\\n    // VulkanBufferFormattedView"
+    end_marker = "\n    // VulkanBufferFormattedView"
     start = text.find(start_marker)
     if start < 0 or text.find(start_marker, start + 1) >= 0:
         raise SystemExit("Could not locate one unique VulkanBuffer::getDeviceAddress method; refusing an unsafe patch.")
