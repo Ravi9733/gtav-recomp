@@ -244,7 +244,7 @@ index 4fdc4bf..fe25401 100644
 +    // (LOAD_OP_CLEAR) instead of a LOAD followed by vkCmdClearAttachments: tilers (Adreno, Mali) skip
 +    // reading the old contents into tile memory. g_statLoadClears counts the attachments so cleared.
 +    bool g_clearLoadOps = false;
-+    uint32_t g_statLoadClears = 0;
++    __attribute__((visibility("default"))) uint32_t g_statLoadClears = 0;
 +    uint32_t g_statClearsInPass = 0, g_statClearsPartial = 0;  // clears that could not become load ops, and why
 +
 +    static std::vector<uint8_t> &pipelineCacheSeed() {
