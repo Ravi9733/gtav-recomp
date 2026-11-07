@@ -1,0 +1,97 @@
+name: Android SDK arm64 verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-original-smooth-save
+    paths:
+      - ".github/workflows/android-sdk-verify.yml"
+      - "rexglue-sdk-gtav-linux.patch"
+      - "sdl3-gtav.patch"
+      - "tools/android/build_sdk.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout GTA V recomp source
+        uses: actions/checkout@v4
+
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned NDK
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Install host build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake clang lld
+
+      - name: Checkout exact ReXGlue SDK and submodules
+        run: |
+          git clone --branch v0.10.0 --depth 1 --recurse-submodules \
+            https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
+          test -f rexglue-sdk/thirdparty/sdl3/CMakeLists.txt
+          test -f rexglue-sdk/thirdparty/vulkan-headers/CMakeLists.txt
+
+      - name: Apply Android compatibility patches
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git -C rexglue-sdk apply --check rexglue-sdk-gtav-linux.patch
+          git -C rexglue-sdk apply rexglue-sdk-gtav-linux.patch
+          (
+            cd rexglue-sdk/thirdparty/sdl3
+            git apply --check ../../../sdl3-gtav.patch
+            git apply ../../../sdl3-gtav.patch
+          )
+
+      - name: Configure Android arm64 SDK
+        run: |
+          cmake -S rexglue-sdk -B rexglue-sdk/out/build/android-arm64 -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-30 \
+            -DANDROID_STL=c++_shared \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_C_FLAGS="-march=armv8.2-a+lse+rcpc+dotprod" \
+            -DCMAKE_CXX_FLAGS="-march=armv8.2-a+lse+rcpc+dotprod -fno-semantic-interposition" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-Bsymbolic-functions" \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/rexglue-sdk/out/install/android-arm64" \
+            -DREXGLUE_ENABLE_TRACY=OFF \
+            -DREXGLUE_BUILD_TESTS=OFF \
+            -DSDL_X11=OFF \
+            -DSDL_WAYLAND=OFF
+
+      - name: Build and install Android runtime
+        run: |
+          cmake --build rexglue-sdk/out/build/android-arm64 --parallel 2
+          cmake --install rexglue-sdk/out/build/android-arm64
+
+      - name: Verify installed Android libraries
+        run: |
+          set -eux
+          test -s rexglue-sdk/out/install/android-arm64/lib/librexruntime.so
+          test -s rexglue-sdk/out/install/android-arm64/lib/librexgpu-xenos.so
+          test -s rexglue-sdk/out/install/android-arm64/lib/cmake/rexglue/rexglueConfig.cmake
+          file rexglue-sdk/out/install/android-arm64/lib/librexruntime.so
+          file rexglue-sdk/out/install/android-arm64/lib/librexgpu-xenos.so
+
+      - name: Upload verified Android SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rexglue-android-arm64-sdk
+          path: rexglue-sdk/out/install/android-arm64/
+          if-no-files-found: error
+          retention-days: 7
