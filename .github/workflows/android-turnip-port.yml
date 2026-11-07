@@ -1,0 +1,209 @@
+name: Android full release APK
+
+on:
+  push:
+    branches: [turnip-port-0.3.0-safe]
+    paths:
+      - ".github/workflows/android-full-apk.yml"
+      - "gtav/**"
+      - "tools/android/**"
+      - "*.patch"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout isolated v0.3.0 Turnip port branch
+        uses: actions/checkout@v4
+        with:
+          ref: turnip-port-0.3.0-safe
+
+      - name: Install host and Android build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang lld ninja-build cmake git python3 python3-pip \
+            pkg-config curl xz-utils zip unzip rsync spirv-tools glslang-tools \
+            libvulkan-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev \
+            libxi-dev libxkbcommon-dev libwayland-dev libasound2-dev libpulse-dev \
+            libdbus-1-dev libudev-dev libibus-1.0-dev libdecor-0-dev libdrm-dev \
+            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/android-tools"
+          cat > "$HOME/android-tools/env.sh" <<EOF
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/29.0.14206865"
+          EOF
+          keytool -genkeypair -keystore "$HOME/android-tools/debug.keystore" \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Fetch exact upstream source trees from the verified v0.3.0 source bundle
+        run: |
+          URL="https://github.com/andrewnakas/gtav-recomp/releases/download/v0.3.0/gtav-recomp-src-v0.3.0.tar.xz"
+          curl -fL --retry 3 "$URL" -o /tmp/gtav-recomp-src.tar.xz
+          echo "e0cc7ff6f045b8ff7b0f225178e8c800a66d2c774acd4e623e899e379eb5028c  /tmp/gtav-recomp-src.tar.xz" | sha256sum -c -
+          mkdir -p /tmp/gtav-source
+          tar -xJf /tmp/gtav-recomp-src.tar.xz -C /tmp/gtav-source \
+            gtav-recomp-src/XenosRecomp \
+            gtav-recomp-src/plume
+          # Use a real SDK checkout so every nested dependency (including CLI11 and FFmpeg) is
+          # initialized at its pinned gitlink; the source bundle's git-archive copy has no .git.
+          git clone https://github.com/rexglue/rexglue-sdk.git rexglue-sdk
+          git -C rexglue-sdk checkout f5337cdc947ff6d4c4196737e2c807a48f2a1fc2
+          git -C rexglue-sdk submodule update --init --recursive
+          mkdir -p thirdparty
+          mv /tmp/gtav-source/gtav-recomp-src/XenosRecomp thirdparty/XenosRecomp
+          mv /tmp/gtav-source/gtav-recomp-src/plume thirdparty/plume
+
+      - name: Apply maintained Android compatibility patches
+        run: |
+          git -C rexglue-sdk apply --check "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk apply "$GITHUB_WORKSPACE/rexglue-sdk-gtav-linux.patch"
+          git -C rexglue-sdk/thirdparty/sdl3 apply --check "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C rexglue-sdk/thirdparty/sdl3 apply "$GITHUB_WORKSPACE/sdl3-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply --check "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
+          git -C rexglue-sdk/thirdparty/FFmpeg apply "$GITHUB_WORKSPACE/ffmpeg-gtav.patch"
+          git -C thirdparty/XenosRecomp apply --check "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
+          git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
+          git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
+          git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
+          # The source archive's Plume headers can differ from the patch's git index state.
+          # Apply and verify the public API additions directly in the include tree used by Clang.
+          python3 tools/android/ensure_plume_android_api.py
+
+      - name: Build ReXGlue Android ARM64 SDK
+        env:
+          JOBS: "2"
+        run: bash tools/android/build_sdk.sh all
+
+      - name: Build pinned Android Turnip loader runtime
+        env:
+          JOBS: "2"
+        run: bash tools/android/build_turnip_loader.sh
+
+      - name: Configure and compile Android release renderer and app native libraries
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: "2"
+        run: |
+          SDK="$GITHUB_WORKSPACE/rexglue-sdk/out/install/android-arm64"
+          cmake -S gtav -B build/android-dll -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-30 \
+            -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH="$SDK" \
+            -DCMAKE_PREFIX_PATH="$SDK" \
+            -Drexglue_DIR="$SDK/lib/cmake/rexglue" \
+            -DSDL3_DIR="$SDK/lib/cmake/SDL3" \
+            -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=ON \
+            -DGTAV_GAME_DLL=ON
+          cmake --build build/android-dll --parallel 2
+          for lib in libmain.so libgtav_fast.so libgtav_setup.so; do
+            test -s "build/android-dll/$lib"
+          done
+          # Fail the APK build if Plume's shared renderer counters are not exported by the
+          # shell library. This prevents a successful package with dlopen-time undefined symbols.
+          NM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          for symbol in _ZN5plume18g_statRenderPassesE _ZN5plume16g_statLoadClearsE _ZN5plume14g_statBarriersE _ZN5plume19g_statClearsPartialE _ZN5plume18g_statClearsInPassE _ZN5plume20g_exactBarrierStagesE _ZN5plume14g_clearLoadOpsE _ZN5plume23g_colorInputAttachmentsE _ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE _ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE; do
+            "$NM" -D --defined-only build/android-dll/libgtav_fast.so | grep -Fq "$symbol" || {
+              echo "libgtav_fast.so does not export required Plume symbol: $symbol" >&2
+              exit 1
+            }
+          done
+          for lib in librexruntime.so librexgpu-xenos.so; do
+            test -s "$SDK/lib/$lib"
+          done
+
+      - name: Package signed Android APK with Turnip runtime and updated Control Center
+        env:
+          RELEASE: "1"
+          TURNIP: "1"
+        run: |
+          bash tools/android/build_apk.sh
+          APK="build/android/apk/gtav-recomp-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          mkdir -p apk-check
+          unzip -q "$APK" -d apk-check
+          for lib in libmain.so libgtav_fast.so libgtav_setup.so librexruntime.so librexgpu-xenos.so \
+                     libadrenotools.so libmain_hook.so libfile_redirect_hook.so libgsl_alloc_hook.so libhook_impl.so; do
+            test -s "apk-check/lib/arm64-v8a/$lib"
+          done
+          TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          for lib in apk-check/lib/arm64-v8a/*.so; do
+            "$TOOLCHAIN/llvm-readelf" -h "$lib" | grep -q "Machine:.*AArch64"
+          done
+          mkdir -p android-apk-artifact
+          cp "$APK" android-apk-artifact/GTAV-Android-Turnip.apk
+          sha256sum android-apk-artifact/GTAV-Android-Turnip.apk > android-apk-artifact/SHA256SUMS.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > android-apk-artifact/apk-badging.txt
+          # Verify exports in the final stripped APK library, not only the pre-package .so.
+          for symbol in _ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE _ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE; do
+            "$TOOLCHAIN/llvm-nm" -D --defined-only apk-check/lib/arm64-v8a/libgtav_fast.so | grep -Fq "$symbol" || {
+              echo "Packaged APK libgtav_fast.so is missing required Plume ABI export: $symbol" >&2
+              exit 1
+            }
+          done
+
+      - name: Create matching PC Build-for-Android package
+        run: |
+          # This folder is the exact Android shell input consumed by the desktop
+          # launcher's Build for Android command. Keep it paired with this APK.
+          mkdir -p android-pc-package/android/link \
+                   android-pc-package/android/interface \
+                   android-pc-package/android/include/simde \
+                   android-pc-package/android/LICENSES
+          cp android-apk-artifact/GTAV-Android-Turnip.apk android-pc-package/android/GTAV.apk
+          unzip -q -j -o android-pc-package/android/GTAV.apk \
+            lib/arm64-v8a/libgtav_fast.so lib/arm64-v8a/librexruntime.so \
+            -d android-pc-package/android/link
+          cp build/android-dll/game_interface/gtav_hooks.h \
+             build/android-dll/game_interface/gtav_game.exports \
+             android-pc-package/android/interface/
+          rsync -a --exclude='*.md' --exclude='*.txt' --exclude='.*' \
+            rexglue-sdk/thirdparty/simde/simde/ \
+            android-pc-package/android/include/simde/
+          cp rexglue-sdk/thirdparty/simde/COPYING \
+             android-pc-package/android/LICENSES/simde.txt
+          cp rexglue-sdk/thirdparty/sdl3/LICENSE.txt \
+             android-pc-package/android/LICENSES/SDL.txt
+          APK_LIB_SHA="$(sha256sum android-pc-package/android/link/libgtav_fast.so | cut -d' ' -f1)"
+          APK_EMBEDDED_SHA="$(unzip -p android-pc-package/android/GTAV.apk \
+            lib/arm64-v8a/libgtav_fast.so | sha256sum | cut -d' ' -f1)"
+          test "$APK_LIB_SHA" = "$APK_EMBEDDED_SHA"
+          printf 'APK: GTAV-Android-Turnip.apk\\nlibgtav_fast.so SHA-256: %s\\n' \
+            "$APK_LIB_SHA" > android-pc-package/ANDROID_PACK_MATCH.txt
+          (cd android-pc-package && zip -qr ../GTAV-Android-Turnip-PC-Package.zip android ANDROID_PACK_MATCH.txt)
+          sha256sum GTAV-Android-Turnip-PC-Package.zip > GTAV-Android-Turnip-PC-Package-SHA256.txt
+
+      - name: Upload matching PC Build-for-Android package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTAV-Android-Turnip-PC-Package
+          path: |
+            GTAV-Android-Turnip-PC-Package.zip
+            GTAV-Android-Turnip-PC-Package-SHA256.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload Android release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTAV-Android-Turnip-Release
+          path: android-apk-artifact/
+          if-no-files-found: error
+          retention-days: 90
