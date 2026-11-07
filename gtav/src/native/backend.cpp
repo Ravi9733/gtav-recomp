@@ -1313,10 +1313,10 @@ struct ScopedMs {
 };
 
 struct UploadAllocation {
-  const RenderBuffer* buffer;
-  uint64_t offset;
-  uint8_t* cpu;
-  uint64_t gpu;
+  const RenderBuffer* buffer = nullptr;
+  uint64_t offset = 0;
+  uint8_t* cpu = nullptr;
+  uint64_t gpu = 0;
 };
 
 // Per-frame linear allocator over host-visible chunks; reset once the frame's fence passed.
@@ -1332,6 +1332,7 @@ struct UploadRing {
   uint64_t offset = 0;
 
   UploadAllocation Allocate(uint64_t size, uint64_t alignment = 256) {
+    if (!device || !alignment || (alignment & (alignment - 1))) return {};
     offset = (offset + alignment - 1) & ~(alignment - 1);
     if (offset + size > kUploadChunk) {
       chunk++;
@@ -1343,12 +1344,28 @@ struct UploadRing {
       c.buffer = device->createBuffer(RenderBufferDesc::UploadBuffer(
           kUploadChunk, RenderBufferFlag::CONSTANT | RenderBufferFlag::VERTEX | RenderBufferFlag::INDEX |
                             RenderBufferFlag::DEVICE_ADDRESSABLE));
+      if (!c.buffer) {
+        REXLOG_ERROR("[native] Vulkan upload-ring buffer allocation failed");
+        return {};
+      }
       c.cpu = static_cast<uint8_t*>(c.buffer->map());
+      if (!c.cpu) {
+        REXLOG_ERROR("[native] Vulkan upload-ring buffer mapping failed");
+        return {};
+      }
       c.gpu = c.buffer->getDeviceAddress();
+      if (!c.gpu) {
+        static bool address_warning = false;
+        if (!address_warning) {
+          address_warning = true;
+          REXLOG_ERROR("[native] Vulkan buffer device address unavailable; skipping GPU-address-dependent draws");
+        }
+      }
       chunks.push_back(std::move(c));
     }
     auto& c = chunks[chunk];
-    UploadAllocation a{c.buffer.get(), offset, c.cpu + offset, c.gpu + offset};
+    if (!c.buffer || !c.cpu) return {};
+    UploadAllocation a{c.buffer.get(), offset, c.cpu + offset, c.gpu ? c.gpu + offset : 0};
     offset += size;
     return a;
   }
@@ -3778,6 +3795,7 @@ struct Backend::Impl {
                                                     LastConstants& last) {
     if (last.valid && last.offset == offset && (last.use == use || !last.use)) return last.gpu;
     auto a = upload.Allocate(kAluSize);
+    if (!a.buffer || !a.cpu || !a.gpu) return {};
     auto run = [&](uint32_t first, uint32_t count) {
       for (uint32_t i = first * 16; i < (first + count) * 16; i += 16) Swap16Bytes(a.cpu + i, src + i, 4);
     };
@@ -4148,6 +4166,10 @@ struct Backend::Impl {
     // (Dumps read every register: they get the whole block.)
     UploadAllocation vsc = ConstantUpload(vsrc, d.vs_consts, dumping ? nullptr : d.vs_use, last_vs),
                      psc = ConstantUpload(psrc, d.ps_consts, dumping ? nullptr : d.ps_use, last_ps);
+    if (!vsc.buffer || !psc.buffer || !vsc.cpu || !psc.cpu || !vsc.gpu || !psc.gpu) {
+      stat_skipped++;
+      return;
+    }
     // Shared constants are built here and copied into upload memory once: that memory is
     // write-combined, and reading it back (or scattering 4-byte writes) cost ~100 ms a frame.
     alignas(16) uint8_t shared_cpu[kSharedConstantsSize] = {};
@@ -4630,6 +4652,10 @@ struct Backend::Impl {
       }
     }
     auto shared = upload.Allocate(kSharedConstantsSize);
+    if (!shared.buffer || !shared.cpu || !shared.gpu) {
+      stat_skipped++;
+      return;
+    }
     std::memcpy(shared.cpu, shared_cpu, kSharedConstantsSize);
     uint64_t push[3] = {vsc.gpu, psc.gpu, shared.gpu};
     list->setGraphicsPushConstants(0, push, 0, sizeof(push));
