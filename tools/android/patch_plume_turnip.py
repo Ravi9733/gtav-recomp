@@ -274,11 +274,11 @@ if descriptor_create_marker not in text:
         raise SystemExit("Could not locate unique VulkanDevice::createDescriptorSet implementation.")
     text = text.replace(create_old, create_new, 1)
 
-    set_buffer_marker = "GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION"
     buffer_old = """        const VulkanBuffer *interfaceBuffer = static_cast<const VulkanBuffer *>(buffer);
         const VkBufferView *bufferView = nullptr;"""
     buffer_new = """        const VulkanBuffer *interfaceBuffer = static_cast<const VulkanBuffer *>(buffer);
 #if defined(__ANDROID__)
+        // GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION: reject stale, foreign-device, or undersized buffers.
         if (device == nullptr || device->vk == VK_NULL_HANDLE || interfaceBuffer->device != device ||
             interfaceBuffer->vk == VK_NULL_HANDLE || bufferSize > interfaceBuffer->desc.size) {
             fprintf(stderr, "[native] refusing invalid Vulkan descriptor buffer: device=%p bufferDevice=%p buffer=%p size=%llu capacity=%llu\\n",
@@ -316,7 +316,6 @@ if descriptor_create_marker not in text:
     if text.count(set_desc_old) != 1:
         raise SystemExit("Could not locate unique VulkanDescriptorSet::setDescriptor entry.")
     text = text.replace(set_desc_old, set_desc_new, 1)
-    text = text.replace("GTAV_ANDROID_DESCRIPTOR_BUFFER_VALIDATION", descriptor_create_marker)
 
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
