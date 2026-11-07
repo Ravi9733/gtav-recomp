@@ -965,7 +965,7 @@ index 4fdc4bf..fe25401 100644
 +        pipelineCacheSeed() = std::move(data);
 +    }
 +
-+    std::vector<uint8_t> GetVulkanPipelineCacheData(RenderDevice *device) {
++    __attribute__((visibility("default"))) std::vector<uint8_t> GetVulkanPipelineCacheData(RenderDevice *device) {
 +        auto *vulkanDevice = static_cast<VulkanDevice *>(device);
 +        std::vector<uint8_t> data;
 +        size_t size = 0;
