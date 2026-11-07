@@ -958,13 +958,6 @@ index 4fdc4bf..fe25401 100644
          if (res != VK_SUCCESS) {
              fprintf(stderr, "volkInitialize failed with error code 0x%X.\n", res);
              return;
-@@ -4666,6 +5047,6 @@ namespace plume {
-         return instance != nullptr;
-     }
- 
-     // Global creation function.
- 
- #if defined(PLUME_SDL2_VULKAN_ENABLED)
 diff --git a/plume_vulkan.h b/plume_vulkan.h
 index 1d36b12..0de1495 100644
 --- a/plume_vulkan.h
