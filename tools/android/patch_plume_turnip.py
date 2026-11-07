@@ -142,13 +142,14 @@ interface.write_text(header)
 # selected driver's entry point and is checked before calling.
 bda_marker = "GTAV_ANDROID_DEVICE_BDA_DISPATCH"
 if bda_marker not in text:
-    old_bda = """        if (vkGetBufferDeviceAddressKHR != nullptr) {
+    old_bda_patched = """        if (vkGetBufferDeviceAddressKHR != nullptr) {
             return vkGetBufferDeviceAddressKHR(device->vk, &info);
         }
         if (vkGetBufferDeviceAddress != nullptr) {
             return vkGetBufferDeviceAddress(device->vk, &info);
         }
         return 0;"""
+    old_bda_upstream = """        return vkGetBufferDeviceAddress(device->vk, &info);"""
     new_bda = """        // GTAV_ANDROID_DEVICE_BDA_DISPATCH: use this VkDevice's driver entry point,
         // not Volk's process-global device trampoline (which can have a null driver target).
         if (!device->capabilities.bufferDeviceAddress) return 0;
@@ -167,9 +168,12 @@ if bda_marker not in text:
             return 0;
         }
         return getAddress(device->vk, &info);"""
-    if text.count(old_bda) != 1:
-        raise SystemExit("Could not locate the exact Plume buffer-device-address dispatch block; refusing an unsafe patch.")
-    text = text.replace(old_bda, new_bda, 1)
+    if text.count(old_bda_patched) == 1:
+        text = text.replace(old_bda_patched, new_bda, 1)
+    elif text.count(old_bda_upstream) == 1:
+        text = text.replace(old_bda_upstream, new_bda, 1)
+    elif bda_marker not in text:
+        raise SystemExit("Could not locate a known Plume buffer-device-address implementation; refusing an unsafe patch.")
 
 # Fail closed if a future upstream Plume change or edit drops either integration seam.
 required = (
