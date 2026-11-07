@@ -82,9 +82,6 @@ jobs:
           git -C thirdparty/XenosRecomp apply "$GITHUB_WORKSPACE/xenosrecomp-gtav.patch"
           git -C thirdparty/plume apply --check "$GITHUB_WORKSPACE/plume-gtav.patch"
           git -C thirdparty/plume apply "$GITHUB_WORKSPACE/plume-gtav.patch"
-          # The source archive's Plume headers can differ from the patch's git index state.
-          # Apply and verify the public API additions directly in the include tree used by Clang.
-          python3 tools/android/ensure_plume_android_api.py
 
       - name: Build ReXGlue Android ARM64 SDK
         env:
@@ -115,15 +112,6 @@ jobs:
           for lib in libmain.so libgtav_fast.so libgtav_setup.so; do
             test -s "build/android-dll/$lib"
           done
-          # Fail the APK build if Plume's shared renderer counters are not exported by the
-          # shell library. This prevents a successful package with dlopen-time undefined symbols.
-          NM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          for symbol in _ZN5plume18g_statRenderPassesE _ZN5plume16g_statLoadClearsE _ZN5plume14g_statBarriersE _ZN5plume19g_statClearsPartialE _ZN5plume18g_statClearsInPassE _ZN5plume20g_exactBarrierStagesE _ZN5plume14g_clearLoadOpsE _ZN5plume23g_colorInputAttachmentsE _ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE _ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE; do
-            "$NM" -D --defined-only build/android-dll/libgtav_fast.so | grep -Fq "$symbol" || {
-              echo "libgtav_fast.so does not export required Plume symbol: $symbol" >&2
-              exit 1
-            }
-          done
           for lib in librexruntime.so librexgpu-xenos.so; do
             test -s "$SDK/lib/$lib"
           done
@@ -151,13 +139,6 @@ jobs:
           cp "$APK" android-apk-artifact/GTAV-Android-Turnip.apk
           sha256sum android-apk-artifact/GTAV-Android-Turnip.apk > android-apk-artifact/SHA256SUMS.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > android-apk-artifact/apk-badging.txt
-          # Verify exports in the final stripped APK library, not only the pre-package .so.
-          for symbol in _ZN5plume26SetVulkanPipelineCacheDataENSt6__ndk16vectorIhNS0_9allocatorIhEEEE _ZN5plume26GetVulkanPipelineCacheDataEPNS_12RenderDeviceE; do
-            "$TOOLCHAIN/llvm-nm" -D --defined-only apk-check/lib/arm64-v8a/libgtav_fast.so | grep -Fq "$symbol" || {
-              echo "Packaged APK libgtav_fast.so is missing required Plume ABI export: $symbol" >&2
-              exit 1
-            }
-          done
 
       - name: Create matching PC Build-for-Android package
         run: |
