@@ -961,7 +961,7 @@ index 4fdc4bf..fe25401 100644
          return instance != nullptr;
      }
  
-+    void SetVulkanPipelineCacheData(std::vector<uint8_t> data) {
++    __attribute__((visibility("default"))) void SetVulkanPipelineCacheData(std::vector<uint8_t> data) {
 +        pipelineCacheSeed() = std::move(data);
 +    }
 +
