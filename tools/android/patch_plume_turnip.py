@@ -136,44 +136,50 @@ add_virtual_after(
     "setGraphicsRootDescriptor")
 interface.write_text(header)
 
-# Resolve buffer-device-address through the selected VkDevice instead of Volk's global
-# trampoline. Some Adreno/Turnip loader combinations expose a non-null global trampoline whose
-# device dispatch target is null; invoking it jumps to PC 0. A device-proc lookup returns the
-# selected driver's entry point and is checked before calling.
+# Resolve buffer-device-address through the selected VkDevice instead of Volk's
+# process-global device trampoline. Patch only the uniquely delimited method body: upstream
+# and the maintained plume-gtav.patch have changed its internal spelling/whitespace over time.
 bda_marker = "GTAV_ANDROID_DEVICE_BDA_DISPATCH"
 if bda_marker not in text:
-    old_bda_patched = """        if (vkGetBufferDeviceAddressKHR != nullptr) {
-            return vkGetBufferDeviceAddressKHR(device->vk, &info);
-        }
-        if (vkGetBufferDeviceAddress != nullptr) {
-            return vkGetBufferDeviceAddress(device->vk, &info);
-        }
-        return 0;"""
-    old_bda_upstream = """        return vkGetBufferDeviceAddress(device->vk, &info);"""
-    new_bda = """        // GTAV_ANDROID_DEVICE_BDA_DISPATCH: use this VkDevice's driver entry point,
+    start_marker = "    uint64_t VulkanBuffer::getDeviceAddress() const {"
+    end_marker = "\\n    // VulkanBufferFormattedView"
+    start = text.find(start_marker)
+    if start < 0 or text.find(start_marker, start + 1) >= 0:
+        raise SystemExit("Could not locate one unique VulkanBuffer::getDeviceAddress method; refusing an unsafe patch.")
+    end = text.find(end_marker, start)
+    if end < 0:
+        raise SystemExit("Could not locate the end of VulkanBuffer::getDeviceAddress; refusing an unsafe patch.")
+    method = """    uint64_t VulkanBuffer::getDeviceAddress() const {
+        // GTAV_ANDROID_DEVICE_BDA_DISPATCH: use this VkDevice's driver entry point,
         // not Volk's process-global device trampoline (which can have a null driver target).
-        if (!device->capabilities.bufferDeviceAddress) return 0;
-        auto getAddress = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
-            vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddressKHR"));
-        if (!getAddress) {
-            getAddress = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
-                vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddress"));
-        }
-        if (!getAddress) {
-            static bool reported = false;
-            if (!reported) {
-                reported = true;
-                fprintf(stderr, "[native] buffer-device-address entry point unavailable on selected Vulkan device\\n");
-            }
+        if (device == nullptr || device->vk == VK_NULL_HANDLE || vk == VK_NULL_HANDLE ||
+            !device->capabilities.bufferDeviceAddress) {
             return 0;
         }
-        return getAddress(device->vk, &info);"""
-    if text.count(old_bda_patched) == 1:
-        text = text.replace(old_bda_patched, new_bda, 1)
-    elif text.count(old_bda_upstream) == 1:
-        text = text.replace(old_bda_upstream, new_bda, 1)
-    elif bda_marker not in text:
-        raise SystemExit("Could not locate a known Plume buffer-device-address implementation; refusing an unsafe patch.")
+        VkBufferDeviceAddressInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        info.buffer = vk;
+
+        auto getAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
+            vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddressKHR"));
+        if (getAddressKHR != nullptr) {
+            return getAddressKHR(device->vk, &info);
+        }
+
+        auto getAddressCore = reinterpret_cast<PFN_vkGetBufferDeviceAddress>(
+            vkGetDeviceProcAddr(device->vk, "vkGetBufferDeviceAddress"));
+        if (getAddressCore != nullptr) {
+            return getAddressCore(device->vk, &info);
+        }
+
+        static bool reported = false;
+        if (!reported) {
+            reported = true;
+            fprintf(stderr, "[native] buffer-device-address entry point unavailable on selected Vulkan device\\n");
+        }
+        return 0;
+    }"""
+    text = text[:start] + method + text[end:]
 
 # Volk has separate instance- and device-level dispatch tables. The Turnip GIPA is
 # installed before instance creation above; load the selected VkDevice immediately after
