@@ -154,7 +154,7 @@ if(GTAV_GAME_DLL)
                     ${GTAV_LLVM_BIN} ${CMAKE_BINARY_DIR}/CMakeFiles/gtav.dir ${GTAV_INTERFACE_DIR}
                     $<TARGET_FILE:rex::runtime> --android
             VERBATIM)
-        target_link_options(gtav PRIVATE -Wl,-z,undefs)
+        target_link_options(gtav PRIVATE -Wl,-z,undefs -Wl,--export-dynamic-symbol=_ZN5plume16g_statLoadClearsE)
     else()
         find_program(GTAV_LLVM_NM NAMES llvm-nm llvm-nm-20 llvm-nm-19 REQUIRED)
         get_filename_component(GTAV_LLVM_BIN "${GTAV_LLVM_NM}" DIRECTORY)
