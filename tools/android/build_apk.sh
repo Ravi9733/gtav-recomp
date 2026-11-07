@@ -41,6 +41,14 @@ fi
 
 cp "${LIBS[@]}" "$SDK_LIB/librexruntime.so" "$SDK_LIB/librexgpu-xenos.so" \
    "$NDK_LIBCXX" stage/lib/arm64-v8a/
+# Optional rootless Turnip runtime; the driver itself is imported by the user at runtime.
+if [ "${TURNIP:-0}" = 1 ]; then
+  TURNIP_LIB="$ROOT/build/android-turnip/install/lib"
+  for lib in libadrenotools.so libmain_hook.so libfile_redirect_hook.so libgsl_alloc_hook.so libhook_impl.so; do
+    test -s "$TURNIP_LIB/$lib" || { echo "Missing $TURNIP_LIB/$lib; run tools/android/build_turnip_loader.sh" >&2; exit 1; }
+    cp "$TURNIP_LIB/$lib" stage/lib/arm64-v8a/
+  done
+fi
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug stage/lib/arm64-v8a/*.so
 cp base.apk unaligned.apk
 (cd stage && zip -q -X ../unaligned.apk classes.dex && zip -q -X -0 -r ../unaligned.apk lib)
