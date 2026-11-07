@@ -241,7 +241,7 @@ index 4fdc4bf..fe25401 100644
 +    // Every render pass also declares its colour attachments as input attachments (same indices,
 +    // GENERAL layout) and render targets get the input attachment usage, so a pipeline can read the
 +    // attachment under the fragment (framebuffer fetch on MoltenVK). Set before creating resources.
-+    bool g_colorInputAttachments = false;
++    __attribute__((visibility("default"))) bool g_colorInputAttachments = false;
 +    // A clear of a whole attachment before anything else in a render pass becomes the pass's load op
 +    // (LOAD_OP_CLEAR) instead of a LOAD followed by vkCmdClearAttachments: tilers (Adreno, Mali) skip
 +    // reading the old contents into tile memory. g_statLoadClears counts the attachments so cleared.
