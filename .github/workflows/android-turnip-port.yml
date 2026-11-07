@@ -139,6 +139,8 @@ jobs:
           cp "$APK" android-apk-artifact/GTAV-Android-Turnip.apk
           sha256sum android-apk-artifact/GTAV-Android-Turnip.apk > android-apk-artifact/SHA256SUMS.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > android-apk-artifact/apk-badging.txt
+          grep -Fq "package: name=\x27com.gtavrecomp.app\x27 versionCode=\x273\x27 versionName=\x270.3.0\x27" android-apk-artifact/apk-badging.txt
+          grep -Fq "840e7e13f62c0bc8d50af807f0e7a9bbff43bad441284bea2867cc1befbd8d90" tools/android/app/java/com/gtavrecomp/app/SetupActivity.java
 
       - name: Create matching PC Build-for-Android package
         run: |
