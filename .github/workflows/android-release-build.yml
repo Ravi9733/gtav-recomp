@@ -41,7 +41,7 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang-18 g++-14 zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
+          sudo apt-get install -y ninja-build cmake clang-18 g++-14 libstdc++-14-dev zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
 
       - name: Verify Clang 18 with GCC 14 C++23 headers
         shell: bash
