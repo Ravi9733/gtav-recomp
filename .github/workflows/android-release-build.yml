@@ -40,14 +40,27 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang lld zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev libc++-18-dev libc++abi-18-dev
+          sudo apt-get install -y ninja-build cmake clang lld zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev 
 
       - name: Verify host C++23 standard library
         shell: bash
         run: |
           set -euxo pipefail
-          clang++ --version
-          printf '#include <expected>\\nint main() { std::expected<int, int> value = 1; return *value; }\\n' | clang++ -std=c++23 -stdlib=libc++ -x c++ -fsyntax-only -
+          g++ --version
+          cat > /tmp/cxx23-check.cpp <<'EOF'
+          #include <expected>
+          #include <charconv>
+          int main() {
+            std::expected<int, int> value = 1;
+            float f = 1.25f;
+            double d = 2.5;
+            const char* s = "3.5";
+            std::from_chars(s, s + 3, f, std::chars_format::general);
+            std::from_chars(s, s + 3, d, std::chars_format::general);
+            return *value;
+          }
+          EOF
+          g++ -std=c++23 -fsyntax-only /tmp/cxx23-check.cpp
 
       - name: Prepare Android build environment
         shell: bash
@@ -76,10 +89,9 @@ jobs:
         run: |
           set -euxo pipefail
           cmake -S rexglue-sdk -B rexglue-sdk/out/build/linux-amd64 -G Ninja \
-            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=g++ \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23 \
-            -DCMAKE_C_FLAGS="-mssse3" -DCMAKE_CXX_FLAGS="-mssse3 -stdlib=libc++" \
-            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++" \
+            -DCMAKE_C_FLAGS="-mssse3" -DCMAKE_CXX_FLAGS="-mssse3" \
             -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/rexglue-sdk/out/install/linux-amd64" \
             -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_BUILD_TESTS=OFF \
             -DSDL_X11=OFF -DSDL_WAYLAND=OFF
