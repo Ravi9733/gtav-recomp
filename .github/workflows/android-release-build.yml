@@ -41,14 +41,14 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang-18 g++-13 zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
+          sudo apt-get install -y ninja-build cmake clang-18 g++-14 zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
 
-      - name: Verify Clang with GCC 13 C++23 library
+      - name: Verify Clang 18 with GCC 14 C++23 headers
         shell: bash
         run: |
           set -euxo pipefail
           clang++-18 --version
-          g++-13 --version
+          g++-14 --version
           cat > /tmp/cxx23-check.cpp <<'EOF'
           #include <expected>
           #include <charconv>
@@ -63,7 +63,8 @@ jobs:
             return *value;
           }
           EOF
-          clang++-18 --gcc-toolchain=/usr -stdlib=libstdc++ -std=c++23 -fsyntax-only /tmp/cxx23-check.cpp
+          CXX14_INCLUDES="-isystem /usr/include/c++/14 -isystem /usr/include/x86_64-linux-gnu/c++/14 -isystem /usr/include/c++/14/backward"
+          clang++-18 --gcc-toolchain=/usr -stdlib=libstdc++ -nostdinc++ $CXX14_INCLUDES -std=c++23 -fsyntax-only /tmp/cxx23-check.cpp
 
       - name: Checkout and patch ReXGlue SDK
         shell: bash
@@ -86,7 +87,7 @@ jobs:
             -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23 \
             -DCMAKE_C_FLAGS="--gcc-toolchain=/usr -mssse3" \
-            -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr -stdlib=libstdc++ -mssse3" \
+            -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr -stdlib=libstdc++ -nostdinc++ -isystem /usr/include/c++/14 -isystem /usr/include/x86_64-linux-gnu/c++/14 -isystem /usr/include/c++/14/backward -mssse3" \
             -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/rexglue-sdk/out/install/linux-amd64" \
             -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_BUILD_TESTS=OFF \
             -DSDL_X11=OFF -DSDL_WAYLAND=OFF
