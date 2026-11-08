@@ -6,7 +6,11 @@
 # shim + libgtav_fast.so; the player's libgtav_game.so comes from the PC's Build for Android), not
 # debuggable -> build/android/apk/gtav-recomp-release.apk
 set -e
-source ~/android-tools/env.sh
+# Use the Android SDK/NDK provisioned by CI or an existing local Android SDK.
+: "${ANDROID_HOME:=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+: "${ANDROID_SDK_ROOT:=$ANDROID_HOME}"
+: "${ANDROID_NDK_HOME:=$ANDROID_HOME/ndk/29.0.14206865}"
+export ANDROID_HOME ANDROID_SDK_ROOT ANDROID_NDK_HOME
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 APP=$ROOT/tools/android/app
 OUT=$ROOT/build/android/apk
@@ -15,7 +19,7 @@ SDL_JAVA=$ROOT/rexglue-sdk/thirdparty/sdl3/android-project/app/src/main/java
 BT=$ANDROID_HOME/build-tools/36.0.0
 JAR=$ANDROID_HOME/platforms/android-36/android.jar
 NDK_LIBCXX=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so
-KEY=$HOME/android-tools/debug.keystore
+KEY=$OUT/debug.keystore
 
 mkdir -p "$OUT"
 cd "$OUT"
