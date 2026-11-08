@@ -84,6 +84,18 @@ jobs:
           git -C thirdparty/plume apply --check ../../plume-gtav.patch
           git -C thirdparty/plume apply ../../plume-gtav.patch
 
+      - name: Checkout and patch XenosRecomp shader compiler
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # Pin the upstream revision expected by xenosrecomp-gtav.patch.
+          git clone --branch main --depth 1 --recurse-submodules https://github.com/hedge-dev/XenosRecomp.git thirdparty/XenosRecomp
+          git -C thirdparty/XenosRecomp apply --check ../../xenosrecomp-gtav.patch
+          git -C thirdparty/XenosRecomp apply ../../xenosrecomp-gtav.patch
+          DXC=thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxc-linux
+          test -x "$DXC"
+          "$DXC" --version
+
       - name: Enable C++23 expected with Clang 18 and GCC 14 headers
         shell: bash
         run: |
