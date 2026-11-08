@@ -85,8 +85,13 @@ jobs:
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path("rexglue-sdk/include/rex/result.h")
-          source = path.read_text()
+          # GCC 14's <expected> is gated on the C++20 concepts feature-test
+          # value. Clang 18 reports an older value, so scope the compatibility
+          # override around every direct <expected> include in the host SDK.
+          paths = [
+              Path("rexglue-sdk/include/rex/result.h"),
+              Path("rexglue-sdk/include/rex/system/map_parser.h"),
+          ]
           old = "#include <expected>"
           new = """#if defined(__clang__) && __cplusplus > 202002L && defined(__cpp_concepts) && __cpp_concepts < 202002L
           #pragma push_macro("__cpp_concepts")
@@ -97,9 +102,11 @@ jobs:
           #else
           #include <expected>
           #endif"""
-          if source.count(old) != 1:
-              raise SystemExit("expected include in rex/result.h not found exactly once")
-          path.write_text(source.replace(old, new))
+          for path in paths:
+              source = path.read_text()
+              if source.count(old) != 1:
+                  raise SystemExit(f"expected include in {path} not found exactly once")
+              path.write_text(source.replace(old, new))
           PY
 
       - name: Build host ReXGlue code generator
