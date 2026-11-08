@@ -40,7 +40,14 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang lld zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
+          sudo apt-get install -y ninja-build cmake clang lld zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev libc++-18-dev libc++abi-18-dev
+
+      - name: Verify host C++23 standard library
+        shell: bash
+        run: |
+          set -euxo pipefail
+          clang++ --version
+          printf '#include <expected>\\nint main() { std::expected<int, int> value = 1; return *value; }\\n' | clang++ -std=c++23 -stdlib=libc++ -x c++ -fsyntax-only -
 
       - name: Prepare Android build environment
         shell: bash
