@@ -40,7 +40,7 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang lld g++-13 zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev 
+          sudo apt-get install -y ninja-build cmake clang lld g++-13 zip unzip openjdk-17-jdk python3 python3-pip libx11-xcb-dev libwayland-dev
 
       - name: Verify host C++23 standard library
         shell: bash
@@ -91,7 +91,7 @@ jobs:
           cmake -S rexglue-sdk -B rexglue-sdk/out/build/linux-amd64 -G Ninja \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23 \
-            -DCMAKE_C_FLAGS="-mssse3" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr -stdlib=libstdc++ -isystem /usr/include/c++/13 -isystem /usr/include/x86_64-linux-gnu/c++/13 -isystem /usr/include/c++/13/backward -D__cpp_concepts=202002L -mssse3" \
+            -DCMAKE_C_FLAGS="-mssse3" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr -stdlib=libstdc++ -isystem /usr/include/c++/13 -isystem /usr/include/x86_64-linux-gnu/c++/13 -isystem /usr/include/c++/13/backward -mssse3" \
             -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/rexglue-sdk/out/install/linux-amd64" \
             -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_BUILD_TESTS=OFF \
             -DSDL_X11=OFF -DSDL_WAYLAND=OFF
